@@ -1,0 +1,23 @@
+[
+    {
+        "output_arg": "AWG_SD.trig_out",
+        "input_arg": "digitizer.ch1"
+    },
+    {
+        "output_arg": "AWG_SD.ch0",
+        "input_arg": "digitizer.trig_in"
+    },
+    {
+        "output_arg": "AWG_SD.ch1",
+        "input_arg": "digitizer.ch0",
+        "trigger": true
+    },
+    {
+        "output_arg": "AWG_SD.ch3",
+        "input_arg": "digitizer.ch6"
+    },
+    {
+        "output_arg": "chip.output",
+        "input_arg": "digitizer.ch7"
+    }
+]

@@ -1,0 +1,24 @@
+{
+    "digitizer_trigger": [
+        "AWG_SD.ch0",
+        "digitizer.ch0"
+    ],
+    "TGAC": [
+        "AWG_SD.ch2",
+        "chip.TGAC"
+    ],
+    "DB": [
+        "AWG_SD.ch3",
+        "chip.DB"
+    ],
+    "stage": [
+        [
+            "AWG_SD.ch2",
+            "AWG_SD.ch3"
+        ],
+        [
+            "chip.TGAC",
+            "chip.DB"
+        ]
+    ]
+}

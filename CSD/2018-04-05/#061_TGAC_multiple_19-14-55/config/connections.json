@@ -1,0 +1,35 @@
+[
+    {
+        "output_arg": "AWG_SD.trig_out",
+        "input_arg": "digitizer.ch1"
+    },
+    {
+        "output_arg": "AWG_SD.ch0",
+        "input_arg": "digitizer.ch0",
+        "trigger": true
+    },
+    {
+        "output_arg": "AWG_SD.ch2",
+        "input_arg": "chip.TGAC",
+        "scale": 0.0769
+    },
+    {
+        "output_arg": "AWG_SD.ch3",
+        "input_arg": "chip.DB",
+        "scale": 0.0384
+    },
+    {
+        "output_arg": "chip.output",
+        "input_arg": "digitizer.ch7"
+    },
+    {
+        "combine": [
+            "AWG_SD.ch2",
+            "AWG_SD.ch3"
+        ],
+        "scale": [
+            1,
+            1
+        ]
+    }
+]

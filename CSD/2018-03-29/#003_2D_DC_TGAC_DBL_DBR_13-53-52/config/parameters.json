@@ -1,0 +1,70 @@
+{
+    "labels": {
+        "2D": [
+            "TGAC",
+            "RDF"
+        ],
+        "2": [
+            "TGAC",
+            "RDF"
+        ]
+    },
+    "TGAC": {
+        "steps": [
+            0.0005,
+            1
+        ]
+    },
+    "DF": {
+        "steps": [
+            0.0005,
+            1
+        ]
+    },
+    "LDF": {
+        "steps": [
+            0.0005,
+            1
+        ]
+    },
+    "RDF": {
+        "steps": [
+            0.0005,
+            1
+        ]
+    },
+    "EPR_parameter": {
+        "samples": 100
+    },
+    "DC_sweep": {
+        "samples": 1,
+        "pulse_duration": 1.5e-05,
+        "inter_delay": 0.001,
+        "final_delay": 0.3,
+        "use_ramp": true
+    },
+    "ESR_adiabatic": {
+        "samples": 150,
+        "names": [
+            "contrast",
+            "up_proportion",
+            "dark_counts",
+            "mean_high_blip_duration",
+            "fidelity_empty",
+            "voltage_difference_empty",
+            "mean_low_blip_duration",
+            "fidelity_load",
+            "voltage_difference_load",
+            "voltage_difference_read"
+        ]
+    },
+    "NMR": {
+        "samples": 8
+    },
+    "NMR_Ramsey": {
+        "samples": 10
+    },
+    "NMR_Echo": {
+        "samples": 10
+    }
+}
