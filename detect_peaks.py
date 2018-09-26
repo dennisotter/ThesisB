@@ -18,7 +18,7 @@ def max_index(M: np.ndarray) -> Tuple[int, int]:
         Array with x and y index of maximum element.
         For a transition gradient matrix, I[0] is dx, and I[1] is x1.
     """
-    return np.unravel_index(np.argmax(M, axis=None), M.shape)
+    return np.unravel_index(np.argmax(M), M.shape)
 
 
 def calculate_theta_matrix(Z: np.ndarray, filter: bool = False) -> np.ndarray:
@@ -26,6 +26,13 @@ def calculate_theta_matrix(Z: np.ndarray, filter: bool = False) -> np.ndarray:
 
     The theta matrix indicates the direction of the 2-dimensional gradient.
 
+    # TODO Please elaborate code. At this moment all these arrays don't make
+    #     sense. Either say why the values are chosen, or refer to a
+    #     website/paper where they were obtained from.
+    # TODO Could modifying these values improve the code?
+    # TODO From what I gather, we're applying a kernel, so perhaps it makes sense
+    #     to have kernel_size as a keyword argument
+    # TODO what does filter do excactly? What type of filtering is applied?
     Args:
         Z: 2-dimensional charge stability diagram matrix.
         filter: Enables filtering during the calculations.
@@ -39,6 +46,7 @@ def calculate_theta_matrix(Z: np.ndarray, filter: bool = False) -> np.ndarray:
     xSfil = np.array([[1], [2], [1]])
     ySfil = np.array([[1, 2, 1]])
 
+    # TODO If something is not used, either remove it or have it as a keyword option
     # filter for G after (not used currently)
     xGfil = np.array([[1], [2], [1]])
     yGfil = np.array([[1, 2, 1]])
@@ -69,6 +77,7 @@ def calculate_theta_matrix(Z: np.ndarray, filter: bool = False) -> np.ndarray:
         GY = convolve2d(GY, Gfil, mode='valid')
         GX = convolve2d(GX, Gfil, mode='valid')
 
+    # TODO what does this do? Why isn't it used?
     # this isnt even used
     # G = (GX**2 + GY**2)**0.5;
 
@@ -76,8 +85,32 @@ def calculate_theta_matrix(Z: np.ndarray, filter: bool = False) -> np.ndarray:
     return theta
 
 
+def find_matrix_mode(M: np.ndarray) -> float:
+    """Determines the mode of a matrix (most-often occurring element).
+
+    # TODO check if this description is accurate
+    Mode is found by first generating a histogram of matrix values, and then
+    returning the center value of the bin with the highest count.
+    Values are grouped because floating numbers are only approximately equal.
+
+    Args:
+        M: n-dimensional matrix. Ideally a 2-dimensional theta matrix.
+
+    Returns:
+        mode: most common element of M after grouping via a histogram.
+    """
+    H = np.reshape(M, -1)
+    # TODO have bins (100) as a keyword argument
+    hist, hist_edges = np.histogram(H, np.linspace(-pi, pi, 100))
+    ind = max_index(hist)
+    mode = (hist_edges[ind] + hist_edges[ind + np.array([1])]) / 2
+    return mode[0]
+
+
 def calculate_transition_gradient(theta: np.ndarray) -> np.ndarray:
-    """Computes the transition gradient matrix from a given theta matrix.
+    """Compute the transition gradient matrix from a given theta matrix.
+
+    # TODO minor explanation of what a transition gradient is
 
     Args:
         theta: 2-dimensional theta matrix of a charge stability diagram.
@@ -93,12 +126,14 @@ def calculate_transition_gradient(theta: np.ndarray) -> np.ndarray:
 
     yl = np.arange(ly, dtype=int)
 
+    # TODO where does this value come from?
     dx_max = int(np.ceil(ly / 3))
 
     theta_mode = find_matrix_mode(theta)
 
     transition_gradient = np.zeros((dx_max, lx))
 
+    # TODO (Serwan) there's probably a loopless way to implement this
     for x1 in range(lx):
         for dx in range(min([x1 + 1, dx_max])):
             xl = x1 + np.round(-dx * yl / ly).astype(int)
@@ -108,36 +143,20 @@ def calculate_transition_gradient(theta: np.ndarray) -> np.ndarray:
             transition_gradient[dx, x1] = 1 - np.mean(
                 np.abs(np.round(np.cos(theta_mode - theta[yl, xl]) ** 2)))
 
+    # TODO make filtering optional
     # these lines filter transgrad, but filtering seems to lose a lot of information
-    # filt = np.ones((3,3)) #make this optional
-    # transgrad = conv2(transgrad, filt, mode='same')/9
+    # filt = np.ones((3,3))
+    # transgrad = convolve2d(transgrad, filt, mode='same')/9
     return transition_gradient
-
-
-def find_matrix_mode(M: np.ndarray) -> float:
-    """Determines the mode of a matrix.
-
-    Ideally used to find the most common theta value.
-
-    Args:
-        M: n-dimensional matrix. Ideally a 2-dimensional theta matrix.
-
-    Returns:
-        mode: most common element of M.
-    """
-    H = np.reshape(M, -1)
-    hist, hist_edges = np.histogram(H, np.linspace(-pi, pi, 100))
-    ind = max_index(hist)
-    mode = (hist_edges[ind] + hist_edges[ind + np.array([1])]) * 0.5
-    return mode[0]
 
 
 def delete_transition(theta: np.ndarray,
                       location: int,
                       gradient: float) -> np.ndarray:
-    """Attempt to remove a transition from a theta matrix.
+    """Remove a transition from a theta matrix.
 
     It does so by replacing the transition's theta data with the modal theta.
+    # TODO a bit more elaborate explanation of the algorithm
 
     Args:
         theta: 2-dimensional theta matrix of a charge stability diagram.
@@ -151,12 +170,12 @@ def delete_transition(theta: np.ndarray,
     ly = theta.shape[0]
     lx = theta.shape[1]
 
-    yl = np.linspace(0, ly, ly, endpoint=False, dtype=int)
-    yl = yl.ravel()
+    yl = np.arange(ly, dtype=int)
 
     theta_mode = find_matrix_mode(theta)
 
     # this is naive at the moment
+    # TODO improve start, stop, why is +-3 chosen?
     start = location - 3
     stop = location + 3
     dx = gradient
@@ -168,6 +187,7 @@ def delete_transition(theta: np.ndarray,
     if start - dx < 0:
         dx = start
 
+    # TODO (Serwan) there's probably a faster loop-less way to do this
     for x1 in range(start, stop):
         xl = x1 + np.round(-dx * yl / ly).astype(int)
         theta[yl, xl] = theta_mode
@@ -175,13 +195,11 @@ def delete_transition(theta: np.ndarray,
     return theta
 
 
+# TODO (Serwan) Implement this function
 def plot_transitions(Z, x, y, transitions, ax=None,
                      transition_gradient=None,):
     if ax is None:
         fig, ax = plt.subplots()
-
-
-
 
 
 def find_transitions(Z: np.ndarray,
@@ -210,6 +228,7 @@ def find_transitions(Z: np.ndarray,
             Enables plotting of theta and transition gradient diagrams for each transition found.
 
     Returns: a list of dictionaries, one entry for each transition found:
+    # TODO (Serwan) simplify this part
     if true_units == True:
         location  (float): Voltage at the base of the transition.
         gradient  (float): Gradient of the transition. in y_Voltage/x_Voltage
@@ -236,6 +255,7 @@ def find_transitions(Z: np.ndarray,
     transition_gradient = calculate_transition_gradient(theta)
 
     if plot:
+        # TODO add plot of transition in DC scan
         fig, axes = plt.subplots(1, 2, figsize=(14, 5))
         axes[0].pcolormesh(transition_gradient)
         axes[1].pcolormesh(theta)
@@ -247,12 +267,14 @@ def find_transitions(Z: np.ndarray,
         I = max_index(transition_gradient)
         M = np.max(transition_gradient)
 
+        # TODO this chunk of code is hard to understand, should add documentation
+        # between most lines explaining each step
         difx = (x.shape[0] - theta.shape[1]) / 2
         dify = (y.shape[0] - theta.shape[0]) / 2
         location = int(difx + I[1] + np.round(dify * I[0] / theta.shape[0]))
         gradient = -(theta.shape[0] / I[0])
-        gradient_error = (np.abs(I[0] / (I[0] - 1) - 1) + np.abs(
-            I[0] / (I[0] + 1) - 1)) * 50  # same as*100/2
+        gradient_error = (np.abs(I[0] / (I[0] - 1) - 1) + np.abs( # TODO Why -1 and +1?
+            I[0] / (I[0] + 1) - 1)) * 50  # same as*100/2  # TODO Where does 50 come from?
         theta = delete_transition(theta, I[1], I[0])
         transition_gradient = calculate_transition_gradient(theta)
 
@@ -260,7 +282,7 @@ def find_transitions(Z: np.ndarray,
             gradient = gradient * (y[1] - y[0]) / (x[1] - x[0])  # in V/V
             location = x[location]  # units in V
 
-        if charge_transfer:
+        if charge_transfer:  # TODO What is the downside to applying this by default?
             # dV = dVtop = delta_q/Ctop
             dV, dI, dI_x, dI_y = get_charge_transfer_information(
                 Z, location, gradient, theta_mode)
@@ -272,23 +294,24 @@ def find_transitions(Z: np.ndarray,
                 dI_y = y[dI_y]
                 # units in V
                 dI_x = x[dI_x]
-            trans = {'location': location,
-                     'gradient': gradient,
-                     'gradient_error': gradient_error,
-                     'intensity': M,
-                     'dVtop': dV,
-                     'dI_y': dI_y,
-                     'dI_x': dI_x,
-                     'dI': dI}
+            transition = {'location': location,
+                          'gradient': gradient,
+                          'gradient_error': gradient_error,
+                          'intensity': M,
+                          'dVtop': dV,
+                          'dI_y': dI_y,
+                          'dI_x': dI_x,
+                          'dI': dI}
         else:
-            trans = {'location': location,
-                     'gradient': gradient,
-                     'gradient_error': gradient_error,
-                     'intensity': M}
+            transition = {'location': location,
+                          'gradient': gradient,
+                          'gradient_error': gradient_error,
+                          'intensity': M}
 
-        transitions.append(trans)
+        transitions.append(transition)
 
         if plot:
+            # TODO add x, y units to plot
             fig, axes = plt.subplots(1, 2, figsize=(14, 5))
             axes[0].pcolormesh(transition_gradient)
             axes[1].pcolormesh(theta)
@@ -304,6 +327,7 @@ def get_charge_transfer_information(Z: np.ndarray,
     """Calculate information about a particular charge transfer event.
 
     dI information pertains to points on a coulomb peak prior to a charge transfer event.
+    # TODO elaborate how the algorithm works
 
     Args:
         Z: 2-dimensional charge stability diagram matrix.
@@ -321,12 +345,11 @@ def get_charge_transfer_information(Z: np.ndarray,
     """
 
     ly = Z.shape[0]
-    yl = np.linspace(0, ly, ly, endpoint=False,
-                     dtype=int)  # .ravel()  #<<< check out if that works
-    yl = yl.ravel()
+    yl = np.arange(ly, dtype=int)
     xl = (location + np.round(yl / gradient)).astype(int)
 
-    try:
+    # TODO most of this code is quite hard to follow, please add some documentation
+    try:  # TODO is the try except necessary?
         # lines to check before and after
         shift = 3
         line_pre = Z[yl, xl - shift]
@@ -354,10 +377,9 @@ def get_charge_transfer_information(Z: np.ndarray,
         # i did it very quick sticks
         # 11pm on a saturday night
         # yes, that quick
-        peaks = (
-            signal.find_peaks(line_pre - line_pos, distance=25, height=0.2))
+        peaks = (signal.find_peaks(line_pre - line_pos, distance=25, height=0.2))
         dI_y = peaks[0]
-        dI_x = (location + np.round(dI_y / gradient)).astype(int);
+        dI_x = (location + np.round(dI_y / gradient)).astype(int)
         dI = peaks[1]['peak_heights']
 
         return dV, dI, dI_x, dI_y
