@@ -5,6 +5,22 @@ from scipy.signal import convolve2d
 from math import pi
 from matplotlib import pyplot as plt
 
+
+def max_index(M: np.ndarray) -> Tuple[int, int]:
+    """Returns the index of the maximum element in M.
+
+    Args:
+        M: n-dimensional matrix. Ideally a 2-dimensional theta matrix,
+            2-dimensional charge stability diagram, or 2-dimensional transition
+            gradient matrix.
+
+    Returns:
+        Array with x and y index of maximum element.
+        For a transition gradient matrix, I[0] is dx, and I[1] is x1.
+    """
+    return np.unravel_index(np.argmax(M, axis=None), M.shape)
+
+
 def calculate_theta_matrix(Z: np.ndarray, filter: bool = False) -> np.ndarray:
     """Computes the theta matrix for a 2-dimensional charge stability diagram.
 
@@ -73,31 +89,29 @@ def calculate_transition_gradient(theta: np.ndarray) -> np.ndarray:
     # Low priority: duplicate this function to recalculate transgrad with reduced range.
 
     # Generate Lines
-    ly = theta.shape[0]
-    lx = theta.shape[1]
+    ly, lx = theta.shape
 
-    yl = np.linspace(0, ly, ly, endpoint=False, dtype=int)
-    yl = yl.ravel()
+    yl = np.arange(ly, dtype=int)
 
-    maxdx = np.ceil(ly / 3).astype(int)
+    dx_max = int(np.ceil(ly / 3))
 
     theta_mode = find_matrix_mode(theta)
 
-    transgrad = np.zeros((maxdx, lx))
+    transition_gradient = np.zeros((dx_max, lx))
 
     for x1 in range(lx):
-        for dx in range(min([x1 + 1, maxdx])):
-            xl = x1 + np.around(-dx * yl / ly).astype(int)
-            # Try find the most ideal function. best currently is around(cos^2)
-            # transgrad[dx,x1] = np.sum(np.abs(np.sin(theta_mode-theta[yl,xl])))/ly
-            # transgrad[dx,x1] = 1-np.mean(np.abs(np.cos(theta_mode-theta[yl,xl])))
-            transgrad[dx, x1] = 1 - np.mean(
-                np.abs(np.around(np.cos(theta_mode - theta[yl, xl]) ** 2)))
+        for dx in range(min([x1 + 1, dx_max])):
+            xl = x1 + np.round(-dx * yl / ly).astype(int)
+            # Try find the most ideal function. best currently is round(cos^2)
+            # transition_gradient[dx,x1] = np.sum(np.abs(np.sin(theta_mode-theta[yl,xl])))/ly
+            # transition_gradient[dx,x1] = 1-np.mean(np.abs(np.cos(theta_mode-theta[yl,xl])))
+            transition_gradient[dx, x1] = 1 - np.mean(
+                np.abs(np.round(np.cos(theta_mode - theta[yl, xl]) ** 2)))
 
     # these lines filter transgrad, but filtering seems to lose a lot of information
     # filt = np.ones((3,3)) #make this optional
     # transgrad = conv2(transgrad, filt, mode='same')/9
-    return transgrad
+    return transition_gradient
 
 
 def find_matrix_mode(M: np.ndarray) -> float:
@@ -116,21 +130,6 @@ def find_matrix_mode(M: np.ndarray) -> float:
     ind = max_index(hist)
     mode = (hist_edges[ind] + hist_edges[ind + np.array([1])]) * 0.5
     return mode[0]
-
-
-def max_index(M: np.ndarray) -> Tuple[int, int]:
-    """Returns the index of the maximum element in M.
-
-    Args:
-        M: n-dimensional matrix.Ideally a 2-dimensional theta matrix,
-            2-dimensional charge stability diagram, or 2-dimensional transition
-            gradient matrix.
-
-    Returns:
-        Array with x and y index of maximum element.
-        For a transition gradient matrix, I[0] is dx, and I[1] is x1.
-    """
-    return np.unravel_index(np.argmax(M, axis=None), M.shape)
 
 
 def delete_transition(theta: np.ndarray,
@@ -170,39 +169,48 @@ def delete_transition(theta: np.ndarray,
         dx = start
 
     for x1 in range(start, stop):
-        xl = x1 + np.around(-dx * yl / ly).astype(int)
+        xl = x1 + np.round(-dx * yl / ly).astype(int)
         theta[yl, xl] = theta_mode
 
     return theta
 
 
+def plot_transitions(Z, x, y, transitions, ax=None,
+                     transition_gradient=None,):
+    if ax is None:
+        fig, ax = plt.subplots()
+
+
+
+
+
 def find_transitions(Z: np.ndarray,
                      x: np.ndarray,
                      y: np.ndarray,
-                     trueunits: bool = False,
-                     chargetransfer: bool = False,
-                     plots: bool = False) -> List[dict]:
-    """Locate transitions within a 2-dimensional charge
-
-    stability diagram and returns relevant information.
+                     min_gradient: float = 0.4,
+                     true_units: bool = False,
+                     charge_transfer: bool = False,
+                     plot: bool = False) -> List[dict]:
+    """Locate transitions within a 2-dimensional charge stability diagram
 
     Args:
         Z: 2-dimensional charge stability diagram matrix.
         x: 1-dimensional voltage vector for the x-axis of Z
         y: 1-dimensional voltage vector for the y-axis of Z
-        trueunits:
-            if(True):
+        min_gradient: Minimum gradient to count as a transition
+        true_units:
+            if True:
                 Where applicable, return all values in proper units. i.e. voltage and current.
-            if(False):
+            if False:
                 Return values in calculation specific form. i.e. index and ratios.
-        chargetransfer:
+        charge_transfer:
             Enables calculation of voltage and current shift information about transitions.
             This is required to calculate dV, dI, dI_x, dI_y
-        plots:
+        plot:
             Enables plotting of theta and transition gradient diagrams for each transition found.
 
     Returns: a list of dictionaries, one entry for each transition found:
-    if(trueunits == True):
+    if true_units == True:
         location  (float): Voltage at the base of the transition.
         gradient  (float): Gradient of the transition. in y_Voltage/x_Voltage
         intensity (float): Value between 0 and 1, indicating the strength of the transition
@@ -211,7 +219,7 @@ def find_transitions(Z: np.ndarray,
                            Returns -1 if error.
         dI_x      (array): An array of x-voltages corresponding to the points in dI.
         dI_y      (array): An array of y-voltages corresponding to the points in dI.
-    if(trueunits == False):
+    if true_units == False):
         location    (int): Index at the base of the transition.
         gradient  (float): Gradient of the transition. in y-index/x-index
         intensity (float): Value between 0 and 1, indicating the strength of the transition
@@ -225,40 +233,39 @@ def find_transitions(Z: np.ndarray,
 
     theta = calculate_theta_matrix(Z, filter=True)
     theta_mode = find_matrix_mode(theta)
-    transgrad = calculate_transition_gradient(theta)
+    transition_gradient = calculate_transition_gradient(theta)
 
-    if plots:
-        plt.figure(figsize=(14, 5))
-        plt.pcolormesh(transgrad, theta)
+    if plot:
+        fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+        axes[0].pcolormesh(transition_gradient)
+        axes[1].pcolormesh(theta)
 
-    translist = []
+    transitions = []
 
     # change this value for sensitivity. 0.4 seems to be good
-    while np.max(transgrad) > 0.4:
-
-        I = max_index(transgrad)
-        M = np.max(transgrad)
+    while np.max(transition_gradient) > min_gradient:
+        I = max_index(transition_gradient)
+        M = np.max(transition_gradient)
 
         difx = (x.shape[0] - theta.shape[1]) / 2
         dify = (y.shape[0] - theta.shape[0]) / 2
-        location = (difx + I[1] + np.around(
-            dify * I[0] / theta.shape[0])).astype(int)
+        location = int(difx + I[1] + np.round(dify * I[0] / theta.shape[0]))
         gradient = -(theta.shape[0] / I[0])
         gradient_error = (np.abs(I[0] / (I[0] - 1) - 1) + np.abs(
             I[0] / (I[0] + 1) - 1)) * 50  # same as*100/2
         theta = delete_transition(theta, I[1], I[0])
-        transgrad = calculate_transition_gradient(theta)
+        transition_gradient = calculate_transition_gradient(theta)
 
-        if trueunits:  # Convert indices to units
+        if true_units:  # Convert indices to units
             gradient = gradient * (y[1] - y[0]) / (x[1] - x[0])  # in V/V
             location = x[location]  # units in V
 
-        if chargetransfer:
-            # dV = dVtop = ∆q/Ctop
+        if charge_transfer:
+            # dV = dVtop = delta_q/Ctop
             dV, dI, dI_x, dI_y = get_charge_transfer_information(
                 Z, location, gradient, theta_mode)
 
-            if trueunits:  # this makes all the values in actual units, not just indices
+            if true_units:  # this makes all the values in actual units, not just indices
                 # units in V
                 dV = dV * (y[1] - y[0])
                 # units in V
@@ -267,7 +274,7 @@ def find_transitions(Z: np.ndarray,
                 dI_x = x[dI_x]
             trans = {'location': location,
                      'gradient': gradient,
-                     'grad_error': gradient_error,
+                     'gradient_error': gradient_error,
                      'intensity': M,
                      'dVtop': dV,
                      'dI_y': dI_y,
@@ -276,16 +283,17 @@ def find_transitions(Z: np.ndarray,
         else:
             trans = {'location': location,
                      'gradient': gradient,
-                     'grad_error': gradient_error,
+                     'gradient_error': gradient_error,
                      'intensity': M}
 
-        translist.append(trans)
+        transitions.append(trans)
 
-        if plots:
-            plt.figure(figsize=(14, 5))
-            plt.pcolormesh(transgrad, theta)
+        if plot:
+            fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+            axes[0].pcolormesh(transition_gradient)
+            axes[1].pcolormesh(theta)
 
-    return translist
+    return transitions
 
 
 def get_charge_transfer_information(Z: np.ndarray,
@@ -306,7 +314,7 @@ def get_charge_transfer_information(Z: np.ndarray,
     Returns:
         dV: The shift of coulomb peaks from a charge transfer event.
                       Given as a shift of index in Z. When properly scaled:
-                          dV = dVtop = ∆q/Ctop
+                          dV = dVtop = delta_q/Ctop
         dI: An array of current change from before to after a transition.
         dI_x: An array of x-indices corresponding to the points in dI.
         dI_y: An array of y-indices corresponding to the points in dI.
@@ -316,7 +324,7 @@ def get_charge_transfer_information(Z: np.ndarray,
     yl = np.linspace(0, ly, ly, endpoint=False,
                      dtype=int)  # .ravel()  #<<< check out if that works
     yl = yl.ravel()
-    xl = (location + np.around(yl / gradient)).astype(int)
+    xl = (location + np.round(yl / gradient)).astype(int)
 
     try:
         # lines to check before and after
@@ -326,14 +334,14 @@ def get_charge_transfer_information(Z: np.ndarray,
         # average magnitude difference function
         AMDF = np.zeros(ly)
         for i in range(ly):
-            # AMDF[i] = np.mean(np.abs(np.around(np.cos(peak-theta[yl,xl])**2)))
+            # AMDF[i] = np.mean(np.abs(np.round(np.cos(peak-theta[yl,xl])**2)))
             AMDF[i] = -np.mean(np.abs(
                 line_pre[np.array(range(0, ly - i))] - line_pos[
                     np.array(range(i, ly))])) * (ly + i) / ly
 
         # the 7 in the following line is from the 1 +2*reach of the pos/pre lines
         # qc.MatPlot(AMDF, figsize=(14,5))
-        peakshift = np.around(
+        peakshift = np.round(
             np.abs(np.tan(theta_mode - np.pi / 2)) * (1 + 2 * shift)).astype(
             int)
         dV = max_index(AMDF)[0] + peakshift
@@ -349,7 +357,7 @@ def get_charge_transfer_information(Z: np.ndarray,
         peaks = (
             signal.find_peaks(line_pre - line_pos, distance=25, height=0.2))
         dI_y = peaks[0]
-        dI_x = (location + np.around(dI_y / gradient)).astype(int);
+        dI_x = (location + np.round(dI_y / gradient)).astype(int);
         dI = peaks[1]['peak_heights']
 
         return dV, dI, dI_x, dI_y
