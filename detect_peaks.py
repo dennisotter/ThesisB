@@ -5,7 +5,7 @@ from scipy.signal import convolve2d
 from math import pi
 from matplotlib import pyplot as plt
 
-def calc_theta(Z: np.ndarray, filter: bool = False) -> np.ndarray:
+def calculate_theta_matrix(Z: np.ndarray, filter: bool = False) -> np.ndarray:
     """Computes the theta matrix for a 2-dimensional charge stability diagram.
 
     The theta matrix indicates the direction of the 2-dimensional gradient.
@@ -60,7 +60,7 @@ def calc_theta(Z: np.ndarray, filter: bool = False) -> np.ndarray:
     return theta
 
 
-def calc_transgrad(theta: np.ndarray) -> np.ndarray:
+def calculate_transition_gradient(theta: np.ndarray) -> np.ndarray:
     """Computes the transition gradient matrix from a given theta matrix.
 
     Args:
@@ -81,7 +81,7 @@ def calc_transgrad(theta: np.ndarray) -> np.ndarray:
 
     maxdx = np.ceil(ly / 3).astype(int)
 
-    theta_mode = find_mode(theta)
+    theta_mode = find_matrix_mode(theta)
 
     transgrad = np.zeros((maxdx, lx))
 
@@ -100,7 +100,7 @@ def calc_transgrad(theta: np.ndarray) -> np.ndarray:
     return transgrad
 
 
-def find_mode(M: np.ndarray) -> float:
+def find_matrix_mode(M: np.ndarray) -> float:
     """Determines the mode of a matrix.
 
     Ideally used to find the most common theta value.
@@ -135,7 +135,9 @@ def max_index(M: np.ndarray) -> Tuple[int, int]:
     return np.unravel_index(np.argmax(M, axis=None), M.shape)
 
 
-def delete_trans(theta: np.ndarray, location: int, gradient: float) -> np.ndarray:
+def delete_transition(theta: np.ndarray,
+                      location: int,
+                      gradient: float) -> np.ndarray:
     """Function that attempts to remove a transition from a theta matrix.
     It does so by replacing the transition's theta data with the modal theta.
 
@@ -154,7 +156,7 @@ def delete_trans(theta: np.ndarray, location: int, gradient: float) -> np.ndarra
     yl = np.linspace(0, ly, ly, endpoint=False, dtype=int)
     yl = yl.ravel()
 
-    theta_mode = find_mode(theta)
+    theta_mode = find_matrix_mode(theta)
 
     # this is naive at the moment
     start = location - 3
@@ -221,9 +223,9 @@ def find_transitions(Z: np.ndarray,
         dI_y      (array): An array of y-indices corresponding to the points in dI.
     """
 
-    theta = calc_theta(Z, filter=True)
-    theta_mode = find_mode(theta)
-    transgrad = calc_transgrad(theta)
+    theta = calculate_theta_matrix(Z, filter=True)
+    theta_mode = find_matrix_mode(theta)
+    transgrad = calculate_transition_gradient(theta)
     if (plots):
         plt.figure()
         plt.plot(transgrad, theta, figsize=(14, 5))
@@ -243,8 +245,8 @@ def find_transitions(Z: np.ndarray,
         gradient = -(theta.shape[0] / I[0])
         gradient_error = (np.abs(I[0] / (I[0] - 1) - 1) + np.abs(
             I[0] / (I[0] + 1) - 1)) * 50  # same as*100/2
-        theta = delete_trans(theta, I[1], I[0])
-        transgrad = calc_transgrad(theta)
+        theta = delete_transition(theta, I[1], I[0])
+        transgrad = calculate_transition_gradient(theta)
 
         if (
         trueunits):  # this makes all the values in actual units, not just indices
@@ -255,22 +257,21 @@ def find_transitions(Z: np.ndarray,
 
         if (chargetransfer):
             # dV = dVtop = ∆q/Ctop
-            dV, dI, dI_x, dI_y = get_chargetransfer(Z, location, gradient,
-                                                    theta_mode)
+            dV, dI, dI_x, dI_y = get_charge_transfer_information(Z, location, gradient,
+                                                                 theta_mode)
 
-            if (
-            trueunits):  # this makes all the values in actual units, not just indices
+            if trueunits:  # this makes all the values in actual units, not just indices
                 # units in V
                 dV = dV * (y[1] - y[0])
                 # units in V
                 dI_y = y[dI_y]
                 # units in V
                 dI_x = x[dI_x]
-            trans = {'location': location, 'gradient': gradient, \
-                     'grad_err%': gradient_error, 'intensity': M, 'dVtop': dV, \
+            trans = {'location': location, 'gradient': gradient,
+                     'grad_err%': gradient_error, 'intensity': M, 'dVtop': dV,
                      'dI_y': dI_y, 'dI_x': dI_x, 'dI': dI}
         else:
-            trans = {'location': location, 'gradient': gradient, \
+            trans = {'location': location, 'gradient': gradient,
                      'grad_err%': gradient_error, 'intensity': M}
 
         translist.append(trans)
@@ -281,10 +282,10 @@ def find_transitions(Z: np.ndarray,
     return translist
 
 
-def get_chargetransfer(Z: np.ndarray,
-                       location: int,
-                       gradient: float,
-                       theta_mode: float) -> Tuple[int, np.ndarray,
+def get_charge_transfer_information(Z: np.ndarray,
+                                    location: int,
+                                    gradient: float,
+                                    theta_mode: float) -> Tuple[int, np.ndarray,
                                                    np.ndarray, np.ndarray]:
     """Calculates information about a particular charge transfer event.
 
