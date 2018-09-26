@@ -29,10 +29,14 @@ def calculate_theta_matrix(Z: np.ndarray, filter: bool = False) -> np.ndarray:
     # TODO Please elaborate code. At this moment all these arrays don't make
     #     sense. Either say why the values are chosen, or refer to a
     #     website/paper where they were obtained from.
+    #     -> The wikipedia page for sobel operator explains most of this funtion https://en.wikipedia.org/wiki/Sobel_operator
     # TODO Could modifying these values improve the code?
+    #     -> Yes, fine-tuning these values could definitely improve performance. This can be done later.
     # TODO From what I gather, we're applying a kernel, so perhaps it makes sense
-    #     to have kernel_size as a keyword argument
+    #     to have kernel_size as a keyword argument.
+    #     -> This is a good point, i want to add that later.
     # TODO what does filter do excactly? What type of filtering is applied?
+    #     -> SY and SX are differentiating kernels, all others are binomial window filters.
     Args:
         Z: 2-dimensional charge stability diagram matrix.
         filter: Enables filtering during the calculations.
@@ -42,53 +46,53 @@ def calculate_theta_matrix(Z: np.ndarray, filter: bool = False) -> np.ndarray:
     """
 
     ### Filter coefficients
-    # filter for S before
-    xSfil = np.array([[1], [2], [1]])
+    
+    # Refer to https://en.wikipedia.org/wiki/Sobel_operator
+    # That explains the prinicples used here.
+    
+    # Sobel Operator
+    # SY and SX are differentiating kernels, while the ySfil and xSfil are averaging.
+    SY = np.array([[1], [0], [-1]])
     ySfil = np.array([[1, 2, 1]])
+    SY = convolve2d(SY, ySfil)
 
-    # TODO If something is not used, either remove it or have it as a keyword option
-    # filter for G after (not used currently)
+    SX = np.array([[1, 0, -1]])
+    xSfil = np.array([[1], [2], [1]])
+    SX = convolve2d(SX, xSfil)
+
+    # Binomial filter kernel for the X and Y gradient matrices.
     xGfil = np.array([[1], [2], [1]])
     yGfil = np.array([[1, 2, 1]])
     Gfil = convolve2d(xGfil, yGfil)
 
-    # filter for Z before (not used currently)
-    # xZfil = np.array([[1], [4], [6], [4], [1]])
-    # yZfil = np.array([[1, 4, 6, 4, 1]])
+    # Binomial filter kernel for the source matrix Z prior to computing the gradients.
     xZfil = np.array([[1], [2], [1]])
     yZfil = np.array([[1, 2, 1]])
     Zfil = convolve2d(xZfil, yZfil)
 
-    # Sobel Operator
-    SY = np.array([[1], [0], [-1]])
-    SY = convolve2d(SY, ySfil)
-
-    SX = np.array([[1, 0, -1]])
-    SX = convolve2d(SX, xSfil)
-
     if filter:
+        # This will filter the source matrix Z prior to computing the gradients.
         Z = convolve2d(Z, Zfil, mode='valid')
 
+    #Calculate X and Y gradient matrices
     GY = convolve2d(Z, SY, mode='valid')
-
     GX = convolve2d(Z, SX, mode='valid')
 
     if filter:
+        #This will filter the gradient matrices once they have been calculated.
         GY = convolve2d(GY, Gfil, mode='valid')
         GX = convolve2d(GX, Gfil, mode='valid')
 
-    # TODO what does this do? Why isn't it used?
-    # this isnt even used
-    # G = (GX**2 + GY**2)**0.5;
-
+    #Calculate gradient direction.
     theta = np.arctan(GY / GX)
     return theta
 
 
-def find_matrix_mode(M: np.ndarray) -> float:
+def find_matrix_mode(M: np.ndarray, bins: int = 100) -> float:
     """Determines the mode of a matrix (most-often occurring element).
 
     # TODO check if this description is accurate
+        -> Yes it is.
     Mode is found by first generating a histogram of matrix values, and then
     returning the center value of the bin with the highest count.
     Values are grouped because floating numbers are only approximately equal.
@@ -99,15 +103,14 @@ def find_matrix_mode(M: np.ndarray) -> float:
     Returns:
         mode: most common element of M after grouping via a histogram.
     """
-    H = np.reshape(M, -1)
-    # TODO have bins (100) as a keyword argument
-    hist, hist_edges = np.histogram(H, np.linspace(-pi, pi, 100))
+    
+    hist, hist_edges = np.histogram(M, np.linspace(-pi, pi, bins))
     ind = max_index(hist)
     mode = (hist_edges[ind] + hist_edges[ind + np.array([1])]) / 2
     return mode[0]
 
 
-def calculate_transition_gradient(theta: np.ndarray) -> np.ndarray:
+def calculate_transition_gradient(theta: np.ndarray, filter: bool = True) -> np.ndarray:
     """Compute the transition gradient matrix from a given theta matrix.
 
     # TODO minor explanation of what a transition gradient is
@@ -123,10 +126,10 @@ def calculate_transition_gradient(theta: np.ndarray) -> np.ndarray:
 
     # Generate Lines
     ly, lx = theta.shape
-
     yl = np.arange(ly, dtype=int)
 
     # TODO where does this value come from?
+    # -> This value was found to be roughly twice the maximum dx value a transition will have
     dx_max = int(np.ceil(ly / 3))
 
     theta_mode = find_matrix_mode(theta)
@@ -134,6 +137,7 @@ def calculate_transition_gradient(theta: np.ndarray) -> np.ndarray:
     transition_gradient = np.zeros((dx_max, lx))
 
     # TODO (Serwan) there's probably a loopless way to implement this
+    # -> I don't suspect there is.
     for x1 in range(lx):
         for dx in range(min([x1 + 1, dx_max])):
             xl = x1 + np.round(-dx * yl / ly).astype(int)
@@ -143,10 +147,11 @@ def calculate_transition_gradient(theta: np.ndarray) -> np.ndarray:
             transition_gradient[dx, x1] = 1 - np.mean(
                 np.abs(np.round(np.cos(theta_mode - theta[yl, xl]) ** 2)))
 
-    # TODO make filtering optional
-    # these lines filter transgrad, but filtering seems to lose a lot of information
-    # filt = np.ones((3,3))
-    # transgrad = convolve2d(transgrad, filt, mode='same')/9
+    if filter:
+        #This filters transgrad but can also lose some information.
+        filt = np.ones((3,3))
+        transgrad = convolve2d(transgrad, filt, mode='same')/9
+    
     return transition_gradient
 
 
@@ -176,6 +181,8 @@ def delete_transition(theta: np.ndarray,
 
     # this is naive at the moment
     # TODO improve start, stop, why is +-3 chosen?
+    # -> Because of how theta is filtered, the transition will roughly be visible within a +-3 range.
+    #    This could definitely be fine tuned later
     start = location - 3
     stop = location + 3
     dx = gradient
