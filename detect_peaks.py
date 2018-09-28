@@ -46,10 +46,10 @@ def calculate_theta_matrix(Z: np.ndarray, filter: bool = False) -> np.ndarray:
     """
 
     ### Filter coefficients
-    
+
     # Refer to https://en.wikipedia.org/wiki/Sobel_operator
     # That explains the prinicples used here.
-    
+
     # Sobel Operator
     # SY and SX are differentiating kernels, while the ySfil and xSfil are averaging.
     SY = np.array([[1], [0], [-1]])
@@ -103,7 +103,7 @@ def find_matrix_mode(M: np.ndarray, bins: int = 100) -> float:
     Returns:
         mode: most common element of M after grouping via a histogram.
     """
-    
+
     hist, hist_edges = np.histogram(M, np.linspace(-pi, pi, bins))
     ind = max_index(hist)
     mode = (hist_edges[ind] + hist_edges[ind + np.array([1])]) / 2
@@ -119,10 +119,10 @@ def calculate_transition_gradient(theta: np.ndarray, filter: bool = True) -> np.
         theta: 2-dimensional theta matrix of a charge stability diagram.
 
     Returns:
-        transgrad: 2-dimensional transition gradient matrix.
+        2-dimensional transition gradient matrix.
             x-axis is start position, y-axis is gradient.
     """
-    # Low priority: duplicate this function to recalculate transgrad with reduced range.
+    # Low priority: duplicate this function to recalculate transition_gradent with reduced range.
 
     # Generate Lines
     ly, lx = theta.shape
@@ -148,10 +148,10 @@ def calculate_transition_gradient(theta: np.ndarray, filter: bool = True) -> np.
                 np.abs(np.round(np.cos(theta_mode - theta[yl, xl]) ** 2)))
 
     if filter:
-        #This filters transgrad but can also lose some information.
+        #This filters transition_gradient but can also lose some information.
         filt = np.ones((3,3))
-        transgrad = convolve2d(transgrad, filt, mode='same')/9
-    
+        transition_gradient = convolve2d(transition_gradient, filt, mode='same')/9
+
     return transition_gradient
 
 
@@ -202,11 +202,17 @@ def delete_transition(theta: np.ndarray,
     return theta
 
 
-# TODO (Serwan) Implement this function
-def plot_transitions(Z, x, y, transitions, ax=None,
-                     transition_gradient=None,):
+def plot_transitions(transitions, ax=None, **plot_kwargs):
     if ax is None:
         fig, ax = plt.subplots()
+
+    plot_kwargs.setdefault('linestyle', '-')
+
+    for transition in transitions:
+        yvals = ax.get_ylim()
+        xvals = [transition['location'], transition['location']]
+        xvals[1] += (yvals[1] - yvals[0]) / transition['gradient']
+        ax.plot(xvals, yvals, **plot_kwargs)
 
 
 def find_transitions(Z: np.ndarray,
@@ -263,7 +269,7 @@ def find_transitions(Z: np.ndarray,
 
     if plot:
         # TODO add plot of transition in DC scan
-        fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+        fig, axes = plt.subplots(1, 2, figsize=(10,4))
         axes[0].pcolormesh(transition_gradient)
         axes[1].pcolormesh(theta)
 
@@ -319,7 +325,7 @@ def find_transitions(Z: np.ndarray,
 
         if plot:
             # TODO add x, y units to plot
-            fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+            fig, axes = plt.subplots(1, 2, figsize=(10,4))
             axes[0].pcolormesh(transition_gradient)
             axes[1].pcolormesh(theta)
 
