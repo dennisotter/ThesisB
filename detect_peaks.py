@@ -415,6 +415,7 @@ def get_charge_transfer_information(Z: np.ndarray,
         dI_x: An array of x-indices corresponding to the points in dI.
         dI_y: An array of y-indices corresponding to the points in dI.
     """
+    #9.95 ms ± 369 µs per loop (mean ± std. dev. of 7 runs, 100 loops each)
 
     ly = Z.shape[0]
     yl = np.arange(ly, dtype=int)
