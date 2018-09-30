@@ -19,7 +19,7 @@ TODO plan:
   - Input: X, Y, Z, data
   - Output: slope of transition(s) while varying gate (Z)
 - test this on new test data
-- If time, use capacitance matrix to find location of the donor.
+- If time allows, use capacitance matrix to find location of the donor.
 
 * = tentatively done
 """
@@ -258,7 +258,7 @@ def find_transitions(Z: np.ndarray,
             This is required to calculate dV, dI, dI_x, dI_y
         plot:
              - 'Off'     = No plots
- 			 - 'Simple'  = Plot of DC data and transition data next to it
+             - 'Simple'  = Plot of DC data and transition data next to it
              - 'Complex' = All of simple, plus the transition_gradient and theta plots for each transition.
 
     Returns: a list of dictionaries, one entry for each transition found:
@@ -288,16 +288,21 @@ def find_transitions(Z: np.ndarray,
     theta_mode = find_matrix_mode(theta)
     transition_gradient = calculate_transition_gradient(theta, filter=True)
 
-
-    if (plot == 'Simple')|(plot == 'Complex'):
-    	# improve this!! implement with pyplot
-    	simple_plot = MatPlot(Z, Z, x=x, y=y)
-        # TODO add plot of transition in DC scan
-
     if (plot == 'Complex') : 
-    	fig, axes = plt.subplots(1, 2, figsize=(10,4))
-    	axes[0].pcolormesh(transition_gradient)
-    	axes[1].pcolormesh(theta)
+        fig, axes = plt.subplots(1, 2, figsize=[14,4])
+
+        c = axes[0].pcolormesh(transition_gradient, cmap='pink')
+        axes[0].set_ylabel('∆x value')
+        axes[0].set_xlabel('DBL & DBR voltage index')
+        axes[0].set_title('Transition Gradient Matrix')
+        fig.colorbar(c, ax=axes[0])
+
+        c = axes[1].pcolormesh(theta, cmap='hsv')
+        axes[1].set_xlabel('DBL & DBR voltage index')
+        axes[1].set_ylabel('TGAC voltage index')
+        axes[1].set_title('Theta Matrix')
+        fig.colorbar(c, ax=axes[1])
+        plt.show()
 
     transitions = []
 
@@ -326,7 +331,7 @@ def find_transitions(Z: np.ndarray,
         #If the gradient registers as being close to perfectly vertical, skip over this transition, 
         #since transitions are never perfectly vertical. 
         #You can change this if you don't believe me but the algorithm will be more buggy
-        if(raw_gradient <3): continue
+        if(raw_gradient <2): continue
         
         #gradient = dy/dx = y_length/dx = theta.shape[0]/raw_gradient
         gradient = -(theta.shape[0]/raw_gradient)
@@ -375,15 +380,46 @@ def find_transitions(Z: np.ndarray,
         transitions.append(transition)
 
         if (plot == 'Complex') : 
-        	#update the one up the top then fix this
-        	fig, axes = plt.subplots(1, 2, figsize=(10,4))
-        	axes[0].pcolormesh(transition_gradient)
-        	axes[1].pcolormesh(theta)
+            fig, axes = plt.subplots(1, 2, figsize=[14,4])
+
+            c = axes[0].pcolormesh(transition_gradient, cmap='pink')
+            axes[0].set_ylabel('∆x value')
+            axes[0].set_xlabel('DBL & DBR voltage index')
+            axes[0].set_title('Transition Gradient Matrix')
+            fig.colorbar(c, ax=axes[0])
+
+            c = axes[1].pcolormesh(theta, cmap='hsv')
+            axes[1].set_xlabel('DBL & DBR voltage index')
+            axes[1].set_ylabel('TGAC voltage index')
+            axes[1].set_title('Theta Matrix')
+            fig.colorbar(c, ax=axes[1])
+            plt.show()
+
 
     if (plot == 'Simple')|(plot == 'Complex'):
-    	#Improve this!! do with pyplot
-    	plot_transitions(transitions, simple_plot[1], linewidth=3)
-        # TODO add plot of transition in DC scan
+        #Plotting code
+        fig0,(ax0,ax1) = plt.subplots(1, 2, figsize=[12,4])
+        fig0.suptitle('Transition Identification', fontsize=14, fontweight='semibold')
+
+        ax0.pcolormesh(x, y, Z, cmap='hot')
+        ax0.set_xlabel('DBL & DBR Voltage (V)')
+        ax0.set_ylabel('TGAC Voltage (V)')
+        ax0.set_title('Source scan')
+
+        ax1.pcolormesh(x, y, Z, cmap='hot')
+        ax1.set_xlabel('DBL & DBR Voltage (V)')
+        ax1.set_title('Transitions Identified')
+
+        yvals = ax1.get_ylim()
+        for transition in transitions:
+            x_base = transition['location']
+            if (true_units == False) : x_base = x[x_base]
+
+            xvals = [x_base, x_base]
+            xvals[1] += (yvals[1] - yvals[0]) / transition['gradient']
+            ax1.plot(xvals, yvals, '-', linewidth=4)
+                # TODO add plot of transition in DC scan
+        plt.show()
 
     return transitions
 
