@@ -1,10 +1,28 @@
 from typing import List, Tuple
+
 import numpy as np
 from scipy import signal
 from scipy.signal import convolve2d
 from math import pi
 from matplotlib import pyplot as plt
+from qcodes import load_data, MatPlot
 
+"""
+TODO plan:
+*- Do any TODO that Serwan or myself adds.
+- Add plot capabilities and any minor modifications to functions
+  - 'Off'     = No plots
+  - 'Simple'  = Plot of DC data and transition data next to it
+  - 'Complex' = All of simple, plus the transition_gradient and theta plots for each point.
+- Make a function to test sweeps and display it nicely
+  Ideal function:
+  - Input: X, Y, Z, data
+  - Output: slope of transition(s) while varying gate (Z)
+- test this on new test data
+- If time, use capacitance matrix to find location of the donor.
+
+* = tentatively done
+"""
 
 def max_index(M: np.ndarray) -> Tuple[int, int]:
     """Returns the index of the maximum element in M.
@@ -155,14 +173,14 @@ def calculate_transition_gradient(theta: np.ndarray, filter: bool = True) -> np.
     return transition_gradient
 
 
-def delete_transition(theta: np.ndarray,
-                      location: int,
-                      gradient: float) -> np.ndarray:
-    """Remove a transition from a theta matrix.
-
-    It does so by replacing the transition's theta data with the modal theta.
-    # TODO a bit more elaborate explanation of the algorithm
-
+def delete_transition(theta: np.ndarray, location: int, gradient: float) -> np.ndarray:
+    """Removes a transition from a theta matrix. In order to find transitions, they are identified one at a time. 
+    The most prominent transition is identified first, then removed from the theta matrix so that the second most 
+    prominent transition can be found.
+    
+    Transitions can be identitified by their theta matrix being significantly different to the most common theta value. 
+    Thus, by replacing a transition with the most common value, it is essentially being removed.
+    
     Args:
         theta: 2-dimensional theta matrix of a charge stability diagram.
         location: Base index of the charge transfer event in Z
@@ -172,17 +190,17 @@ def delete_transition(theta: np.ndarray,
         theta: modified 2-dimensional theta matrix, with the specified transition removed.
     """
 
-    ly = theta.shape[0]
-    lx = theta.shape[1]
+    ly,lx = theta.shape
 
     yl = np.arange(ly, dtype=int)
 
     theta_mode = find_matrix_mode(theta)
 
-    # this is naive at the moment
+    # Start and stop are the base locations from which to delete a transition from.
     # TODO improve start, stop, why is +-3 chosen?
     # -> Because of how theta is filtered, the transition will roughly be visible within a +-3 range.
-    #    This could definitely be fine tuned later
+    #    This could definitely be fine tuned later to be variable length depending on how much filtering there is. 
+    #    I'd say this low priority for the moment but should be done in future.
     start = location - 3
     stop = location + 3
     dx = gradient
@@ -218,10 +236,11 @@ def plot_transitions(transitions, ax=None, **plot_kwargs):
 def find_transitions(Z: np.ndarray,
                      x: np.ndarray,
                      y: np.ndarray,
-                     min_gradient: float = 0.4,
+                     #Serwan, i removed min_gradient because it is not really a minimum gradient and i have updated conditions.
+                     #Perhaps this could be changed later but for now i think it should be kept set.
                      true_units: bool = False,
                      charge_transfer: bool = False,
-                     plot: bool = False) -> List[dict]:
+                     plot: str = 'Off') -> List[dict]:
     """Locate transitions within a 2-dimensional charge stability diagram
 
     Args:
@@ -238,7 +257,9 @@ def find_transitions(Z: np.ndarray,
             Enables calculation of voltage and current shift information about transitions.
             This is required to calculate dV, dI, dI_x, dI_y
         plot:
-            Enables plotting of theta and transition gradient diagrams for each transition found.
+             - 'Off'     = No plots
+ 			 - 'Simple'  = Plot of DC data and transition data next to it
+             - 'Complex' = All of simple, plus the transition_gradient and theta plots for each transition.
 
     Returns: a list of dictionaries, one entry for each transition found:
     # TODO (Serwan) simplify this part
@@ -265,52 +286,81 @@ def find_transitions(Z: np.ndarray,
 
     theta = calculate_theta_matrix(Z, filter=True)
     theta_mode = find_matrix_mode(theta)
-    transition_gradient = calculate_transition_gradient(theta)
+    transition_gradient = calculate_transition_gradient(theta, filter=True)
 
-    if plot:
+
+    if (plot == 'Simple')|(plot == 'Complex'):
+    	# improve this!! implement with pyplot
+    	simple_plot = MatPlot(Z, Z, x=x, y=y)
         # TODO add plot of transition in DC scan
-        fig, axes = plt.subplots(1, 2, figsize=(10,4))
-        axes[0].pcolormesh(transition_gradient)
-        axes[1].pcolormesh(theta)
+
+    if (plot == 'Complex') : 
+    	fig, axes = plt.subplots(1, 2, figsize=(10,4))
+    	axes[0].pcolormesh(transition_gradient)
+    	axes[1].pcolormesh(theta)
 
     transitions = []
 
-    # change this value for sensitivity. 0.4 seems to be good
-    while np.max(transition_gradient) > min_gradient:
-        I = max_index(transition_gradient)
-        M = np.max(transition_gradient)
+    # This condition seems good now, could be improved later but i'd say low priority.
+    while ((np.max(transition_gradient) > 3*np.mean(transition_gradient)) & (np.max(transition_gradient) >0.3)):
+        
+        #maximum element of transition_gradient will reveal where the transition is
+        raw_gradient, raw_location = max_index(transition_gradient) 
+        intensity = np.max(transition_gradient) 
 
-        # TODO this chunk of code is hard to understand, should add documentation
-        # between most lines explaining each step
-        difx = (x.shape[0] - theta.shape[1]) / 2
-        dify = (y.shape[0] - theta.shape[0]) / 2
-        location = int(difx + I[1] + np.round(dify * I[0] / theta.shape[0]))
-        gradient = -(theta.shape[0] / I[0])
-        gradient_error = (np.abs(I[0] / (I[0] - 1) - 1) + np.abs( # TODO Why -1 and +1?
-            I[0] / (I[0] + 1) - 1)) * 50  # same as*100/2  # TODO Where does 50 come from?
-        theta = delete_transition(theta, I[1], I[0])
-        transition_gradient = calculate_transition_gradient(theta)
+        # When filtering with convolution, the size of theta and transition_gradient will differ from the initial Z matrix.
+        # The following lines adjust the raw_location from transition_gradient to be a true location in Z
+        difx = (x.shape[0] - theta.shape[1]) / 2 #difference in x-axis size
+        dify = (y.shape[0] - theta.shape[0]) / 2 #difference in y-axis size
+        #Adjusting the location: 
+        # raw_location 
+        # + difference in x
+        # + difference in x from dify due to gradient shift.
+        location = int(difx + raw_location + np.round(dify * raw_gradient / theta.shape[0]))
+        
+        #Recalculate theta with the identified transition removed
+        theta = delete_transition(theta, raw_location, raw_gradient)
+        #Recalculate transition_gradient with an updated theta
+        transition_gradient = calculate_transition_gradient(theta, filter=True)
+        
+        #If the gradient registers as being close to perfectly vertical, skip over this transition, 
+        #since transitions are never perfectly vertical. 
+        #You can change this if you don't believe me but the algorithm will be more buggy
+        if(raw_gradient <3): continue
+        
+        #gradient = dy/dx = y_length/dx = theta.shape[0]/raw_gradient
+        gradient = -(theta.shape[0]/raw_gradient)
+        
+        # The following lines combine together to come up with the final error calculation
+        #minimum_gradient = dy/max_dx = -(theta.shape[0]/(raw_gradient+1))
+        #maximum_gradient = dy/min_dx = -(theta.shape[0]/(raw_gradient-1))
+        #abs_error        = (maximum_gradient - minimum_gradient)/2
+        #percent_error    = abs_error/observed_gradient*100                = abs_error/(-(theta.shape[0]/raw_gradient))*100
+        gradient_error    = (np.abs(raw_gradient/(raw_gradient-1)-1) + np.abs(raw_gradient/(raw_gradient+1)-1))*50
+        
 
         if true_units:  # Convert indices to units
             gradient = gradient * (y[1] - y[0]) / (x[1] - x[0])  # in V/V
             location = x[location]  # units in V
 
         if charge_transfer:  # TODO What is the downside to applying this by default?
+            # This is not set to be enabled by default for three main reasons:
+            # 1. It can clutter the output and make it less clear to understand/read
+            # 2. It is called multiple times and takes up processing time (approx 10ms)
+            # 3. I haven't found anything useful for it yet, so it's not needed all the time
+            
             # dV = dVtop = delta_q/Ctop
             dV, dI, dI_x, dI_y = get_charge_transfer_information(
                 Z, location, gradient, theta_mode)
 
-            if true_units:  # this makes all the values in actual units, not just indices
-                # units in V
-                dV = dV * (y[1] - y[0])
-                # units in V
-                dI_y = y[dI_y]
-                # units in V
-                dI_x = x[dI_x]
+            if true_units: # Convert indices to units
+                dV = dV * (y[1] - y[0]) # units in V
+                dI_y = y[dI_y] # units in V
+                dI_x = x[dI_x] # units in V
             transition = {'location': location,
                           'gradient': gradient,
                           'gradient_error': gradient_error,
-                          'intensity': M,
+                          'intensity': intensity,
                           'dVtop': dV,
                           'dI_y': dI_y,
                           'dI_x': dI_x,
@@ -319,15 +369,21 @@ def find_transitions(Z: np.ndarray,
             transition = {'location': location,
                           'gradient': gradient,
                           'gradient_error': gradient_error,
-                          'intensity': M}
+                          'intensity': intensity}
 
+        #Add transition entry onto the output list
         transitions.append(transition)
 
-        if plot:
-            # TODO add x, y units to plot
-            fig, axes = plt.subplots(1, 2, figsize=(10,4))
-            axes[0].pcolormesh(transition_gradient)
-            axes[1].pcolormesh(theta)
+        if (plot == 'Complex') : 
+        	#update the one up the top then fix this
+        	fig, axes = plt.subplots(1, 2, figsize=(10,4))
+        	axes[0].pcolormesh(transition_gradient)
+        	axes[1].pcolormesh(theta)
+
+    if (plot == 'Simple')|(plot == 'Complex'):
+    	#Improve this!! do with pyplot
+    	plot_transitions(transitions, simple_plot[1], linewidth=3)
+        # TODO add plot of transition in DC scan
 
     return transitions
 
@@ -339,8 +395,11 @@ def get_charge_transfer_information(Z: np.ndarray,
                                                    np.ndarray, np.ndarray]:
     """Calculate information about a particular charge transfer event.
 
-    dI information pertains to points on a coulomb peak prior to a charge transfer event.
-    # TODO elaborate how the algorithm works
+    Firstly, calculates how much the coulomb peaks shift at a charge transfer event.
+    It does this by taking two slices either side of the transition, then comparing the shift.
+    
+    Secondly, the algorithm locates points where the current difference could be conducive as a tuning point.
+    It does this by again taking two slices either side of the transition and comparing the current difference.
 
     Args:
         Z: 2-dimensional charge stability diagram matrix.
@@ -361,40 +420,52 @@ def get_charge_transfer_information(Z: np.ndarray,
     yl = np.arange(ly, dtype=int)
     xl = (location + np.round(yl / gradient)).astype(int)
 
-    # TODO most of this code is quite hard to follow, please add some documentation
-    try:  # TODO is the try except necessary?
-        # lines to check before and after
-        shift = 3
-        line_pre = Z[yl, xl - shift]
-        line_pos = Z[yl, xl + shift]
-        # average magnitude difference function
-        AMDF = np.zeros(ly)
-        for i in range(ly):
-            # AMDF[i] = np.mean(np.abs(np.round(np.cos(peak-theta[yl,xl])**2)))
-            AMDF[i] = -np.mean(np.abs(
-                line_pre[np.array(range(0, ly - i))] - line_pos[
-                    np.array(range(i, ly))])) * (ly + i) / ly
 
-        # the 7 in the following line is from the 1 +2*reach of the pos/pre lines
-        # qc.MatPlot(AMDF, figsize=(14,5))
-        peakshift = np.round(
-            np.abs(np.tan(theta_mode - np.pi / 2)) * (1 + 2 * shift)).astype(
-            int)
-        dV = max_index(AMDF)[0] + peakshift
-
-        shift = 1
-        line_pre = Z[yl, xl - shift]
-        line_pos = Z[yl, xl + shift]
-
-        # this peak detection could DEFINITELY be fine-tuned (check back for how dI is calculated tooooo)
-        # i did it very quick sticks
-        # 11pm on a saturday night
-        # yes, that quick
-        peaks = (signal.find_peaks(line_pre - line_pos, distance=25, height=0.2))
-        dI_y = peaks[0]
-        dI_x = (location + np.round(dI_y / gradient)).astype(int)
-        dI = peaks[1]['peak_heights']
-
-        return dV, dI, dI_x, dI_y
-    except:
+    # Take two current lines to the left and right of the transition, these will be compared to see what changes.
+    # 3 can be chosen arbitrarily, it doesn't matter too much, 
+    # as long as each line is definitely on each side of the transition
+    shift = 3
+    pre  = xl - shift
+    post = xl + shift
+    if ((min(start) < 0)|(max(stop)>Z.shape[1])):
+        #if the pre-post lines are out of bounds, then don't bother computing. This could be improved later.
         return -1, -1, -1, -1
+    line_pre = Z[yl, pre]
+    line_pos = Z[yl, post]
+    
+    # Average Magnitude Difference Function. 
+    # This will shift and compare the lines before and after to see how much the transition shifted the coulomb peaks
+    AMDF = np.zeros(ly)
+    for i in range(ly):
+        
+        AMDF[i] = -np.mean(np.abs(
+            line_pre[np.array(range(0, ly - i))]
+            -line_pos[np.array(range(i, ly))]))  \
+            * (ly + i) / ly                      #Adjustment for the decreasing comparison window as lines are shifted
+
+    # qc.MatPlot(AMDF, figsize=(14,5))
+    # peakshift exists to find out how much of the shift in coulomb peaks in the difference is due to the 
+    # natural gradient of the coulomb peaks. This can be worked out using tan, the coulomb peak gradient (theta_mode), 
+    # and the shift amount
+    peakshift = np.round(
+        np.abs(np.tan(theta_mode - np.pi / 2)) * (1 + 2 * shift)).astype(
+        int)
+    dV = max_index(AMDF)[0] + peakshift
+
+    #*** This following section of code could be improved.
+    #*** It is a rudimentary implimentation of finding potential tuning points. 
+    
+    #Now we will take closer lines to compare, in order to find the biggest difference in SET current.
+    shift = 1
+    line_pre = Z[yl, xl - shift]
+    line_pos = Z[yl, xl + shift]
+
+    #Compare the lines and find peaks in the difference 
+    #the find_peaks parameters could really be improved.
+    #also, using a %difference could be much better than absolute. Use (line_pre-line_pos)/line_pos when re-evaluating.
+    peaks = (signal.find_peaks(line_pre - line_pos, distance=25, height=0.2))
+    dI_y = peaks[0] #y-index of the peaks location
+    dI_x = (location + np.round(dI_y / gradient)).astype(int) #x-index of the peaks
+    dI = peaks[1]['peak_heights'] #the value of the peaks
+
+    return dV, dI, dI_x, dI_y
