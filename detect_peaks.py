@@ -10,10 +10,10 @@ from qcodes import load_data, MatPlot
 """
 TODO plan:
 *- Do any TODO that Serwan or myself adds.
-- Add plot capabilities and any minor modifications to functions
-  - 'Off'     = No plots
-  - 'Simple'  = Plot of DC data and transition data next to it
-  - 'Complex' = All of simple, plus the transition_gradient and theta plots for each point.
+*- Add plot capabilities and any minor modifications to functions
+*  - 'Off'     = No plots
+*  - 'Simple'  = Plot of DC data and transition data next to it
+*  - 'Complex' = All of simple, plus the transition_gradient and theta plots for each point.
 - Make a function to test sweeps and display it nicely
   Ideal function:
   - Input: X, Y, Z, data
@@ -150,8 +150,6 @@ def calculate_transition_gradient(theta: np.ndarray, filter: bool = True) -> np.
     # -> This value was found to be roughly twice the maximum dx value a transition will have
     dx_max = int(np.ceil(ly / 3))
 
-    theta_mode = find_matrix_mode(theta)
-
     transition_gradient = np.zeros((dx_max, lx))
 
     # TODO (Serwan) there's probably a loopless way to implement this
@@ -159,11 +157,7 @@ def calculate_transition_gradient(theta: np.ndarray, filter: bool = True) -> np.
     for x1 in range(lx):
         for dx in range(min([x1 + 1, dx_max])):
             xl = x1 + np.round(-dx * yl / ly).astype(int)
-            # Try find the most ideal function. best currently is round(cos^2)
-            # transition_gradient[dx,x1] = np.sum(np.abs(np.sin(theta_mode-theta[yl,xl])))/ly
-            # transition_gradient[dx,x1] = 1-np.mean(np.abs(np.cos(theta_mode-theta[yl,xl])))
-            transition_gradient[dx, x1] = 1 - np.mean(
-                np.abs(np.round(np.cos(theta_mode - theta[yl, xl]) ** 2)))
+            transition_gradient[dx, x1] = np.mean(theta[yl, xl])
 
     if filter:
         #This filters transition_gradient but can also lose some information.
@@ -194,8 +188,6 @@ def delete_transition(theta: np.ndarray, location: int, gradient: float) -> np.n
 
     yl = np.arange(ly, dtype=int)
 
-    theta_mode = find_matrix_mode(theta)
-
     # Start and stop are the base locations from which to delete a transition from.
     # TODO improve start, stop, why is +-3 chosen?
     # -> Because of how theta is filtered, the transition will roughly be visible within a +-3 range.
@@ -215,22 +207,75 @@ def delete_transition(theta: np.ndarray, location: int, gradient: float) -> np.n
     # TODO (Serwan) there's probably a faster loop-less way to do this
     for x1 in range(start, stop):
         xl = x1 + np.round(-dx * yl / ly).astype(int)
-        theta[yl, xl] = theta_mode
+        theta[yl, xl] = 0
 
     return theta
 
 
-def plot_transitions(transitions, ax=None, **plot_kwargs):
-    if ax is None:
-        fig, ax = plt.subplots()
+def calculate_theta_deviation(theta: np.ndarray, theta_mode: float) -> np.ndarray:
+    #i will add documentation soon
+    #you can change this method for potential improvements
+    theta_deviation = 1 - np.abs(np.round(np.cos(theta_mode - theta) ** 2))
+    return theta_deviation
 
-    plot_kwargs.setdefault('linestyle', '-')
 
+# Serwan i re-did the plot_transitions to make it easier for me to generate plots.
+# I imagine this function could easily be defined in a notebook and used still seperate from this package if you need it.
+# def plot_transitions(transitions, ax=None, **plot_kwargs):
+#     if ax is None:
+#         fig, ax = plt.subplots()
+
+#     plot_kwargs.setdefault('linestyle', '-')
+
+#     for transition in transitions:
+#         yvals = ax.get_ylim()
+#         xvals = [transition['location'], transition['location']]
+#         xvals[1] += (yvals[1] - yvals[0]) / transition['gradient']
+#         ax.plot(xvals, yvals, **plot_kwargs)
+
+def plot_transitions(x: np.ndarray, y: np.ndarray, Z: np.ndarray, transitions: List[dict]):
+    #will add documentation later
+    #Plotting code
+    fig0,(ax0,ax1) = plt.subplots(1, 2, figsize=[12,4])
+    fig0.suptitle('Transition Identification', fontsize=14, fontweight='semibold')
+
+    ax0.pcolormesh(x, y, Z, cmap='hot')
+    ax0.set_xlabel('DBL & DBR Voltage (V)')
+    ax0.set_ylabel('TGAC Voltage (V)')
+    ax0.set_title('Source scan')
+
+    ax1.pcolormesh(x, y, Z, cmap='hot')
+    ax1.set_xlabel('DBL & DBR Voltage (V)')
+    ax1.set_title('Transitions Identified')
+
+    yvals = ax1.get_ylim()
     for transition in transitions:
-        yvals = ax.get_ylim()
-        xvals = [transition['location'], transition['location']]
+        x_base = transition['location']
+        if (type(x_base) is int) : x_base = x[x_base]
+
+        xvals = [x_base, x_base]
         xvals[1] += (yvals[1] - yvals[0]) / transition['gradient']
-        ax.plot(xvals, yvals, **plot_kwargs)
+        ax1.plot(xvals, yvals, '-', linewidth=4)
+            # TODO add plot of transition in DC scan
+    plt.show()
+
+
+def plot_transition_gradient(transition_gradient: np.ndarray, theta_deviation: np.ndarray):
+    #will add documentation later
+    fig, axes = plt.subplots(1, 2, figsize=[13,4])
+
+    c = axes[0].pcolormesh(transition_gradient, cmap='inferno')
+    axes[0].set_ylabel('∆x value')
+    axes[0].set_xlabel('DBL & DBR voltage index')
+    axes[0].set_title('Transition Gradient Matrix')
+    fig.colorbar(c, ax=axes[0])
+
+    axes[1].pcolormesh(theta_deviation, cmap='gray')
+    axes[1].set_xlabel('DBL & DBR voltage index')
+    axes[1].set_ylabel('TGAC voltage index')
+    axes[1].set_title('Theta Matrix')
+
+    plt.show()
 
 
 def find_transitions(Z: np.ndarray,
@@ -286,23 +331,11 @@ def find_transitions(Z: np.ndarray,
 
     theta = calculate_theta_matrix(Z, filter=True)
     theta_mode = find_matrix_mode(theta)
-    transition_gradient = calculate_transition_gradient(theta, filter=True)
+    theta_deviation = calculate_theta_deviation(theta,theta_mode)
 
-    if (plot == 'Complex') : 
-        fig, axes = plt.subplots(1, 2, figsize=[14,4])
+    transition_gradient = calculate_transition_gradient(theta_deviation, filter=True)
 
-        c = axes[0].pcolormesh(transition_gradient, cmap='pink')
-        axes[0].set_ylabel('∆x value')
-        axes[0].set_xlabel('DBL & DBR voltage index')
-        axes[0].set_title('Transition Gradient Matrix')
-        fig.colorbar(c, ax=axes[0])
-
-        c = axes[1].pcolormesh(theta, cmap='hsv')
-        axes[1].set_xlabel('DBL & DBR voltage index')
-        axes[1].set_ylabel('TGAC voltage index')
-        axes[1].set_title('Theta Matrix')
-        fig.colorbar(c, ax=axes[1])
-        plt.show()
+    if (plot == 'Complex'): plot_transition_gradient(transition_gradient,theta_deviation)
 
     transitions = []
 
@@ -324,9 +357,9 @@ def find_transitions(Z: np.ndarray,
         location = int(difx + raw_location + np.round(dify * raw_gradient / theta.shape[0]))
         
         #Recalculate theta with the identified transition removed
-        theta = delete_transition(theta, raw_location, raw_gradient)
+        theta_deviation = delete_transition(theta_deviation, raw_location, raw_gradient)
         #Recalculate transition_gradient with an updated theta
-        transition_gradient = calculate_transition_gradient(theta, filter=True)
+        transition_gradient = calculate_transition_gradient(theta_deviation, filter=True)
         
         #If the gradient registers as being close to perfectly vertical, skip over this transition, 
         #since transitions are never perfectly vertical. 
@@ -379,47 +412,10 @@ def find_transitions(Z: np.ndarray,
         #Add transition entry onto the output list
         transitions.append(transition)
 
-        if (plot == 'Complex') : 
-            fig, axes = plt.subplots(1, 2, figsize=[14,4])
-
-            c = axes[0].pcolormesh(transition_gradient, cmap='pink')
-            axes[0].set_ylabel('∆x value')
-            axes[0].set_xlabel('DBL & DBR voltage index')
-            axes[0].set_title('Transition Gradient Matrix')
-            fig.colorbar(c, ax=axes[0])
-
-            c = axes[1].pcolormesh(theta, cmap='hsv')
-            axes[1].set_xlabel('DBL & DBR voltage index')
-            axes[1].set_ylabel('TGAC voltage index')
-            axes[1].set_title('Theta Matrix')
-            fig.colorbar(c, ax=axes[1])
-            plt.show()
+        if (plot == 'Complex'): plot_transition_gradient(transition_gradient,theta_deviation)
 
 
-    if (plot == 'Simple')|(plot == 'Complex'):
-        #Plotting code
-        fig0,(ax0,ax1) = plt.subplots(1, 2, figsize=[12,4])
-        fig0.suptitle('Transition Identification', fontsize=14, fontweight='semibold')
-
-        ax0.pcolormesh(x, y, Z, cmap='hot')
-        ax0.set_xlabel('DBL & DBR Voltage (V)')
-        ax0.set_ylabel('TGAC Voltage (V)')
-        ax0.set_title('Source scan')
-
-        ax1.pcolormesh(x, y, Z, cmap='hot')
-        ax1.set_xlabel('DBL & DBR Voltage (V)')
-        ax1.set_title('Transitions Identified')
-
-        yvals = ax1.get_ylim()
-        for transition in transitions:
-            x_base = transition['location']
-            if (true_units == False) : x_base = x[x_base]
-
-            xvals = [x_base, x_base]
-            xvals[1] += (yvals[1] - yvals[0]) / transition['gradient']
-            ax1.plot(xvals, yvals, '-', linewidth=4)
-                # TODO add plot of transition in DC scan
-        plt.show()
+    if (plot == 'Simple')|(plot == 'Complex'): plot_transitions(x,y,Z,transitions)
 
     return transitions
 
