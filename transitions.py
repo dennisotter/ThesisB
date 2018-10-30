@@ -268,8 +268,7 @@ def find_transitions(x: np.ndarray,
                      y: np.ndarray,
                      Z: np.ndarray,
                      true_units: bool = True,
-                     charge_transfer: bool = False,
-                     plot: str = 'Off') -> List[dict]:
+                     plot = False) -> List[dict]:
     """Locate transitions within a 2-dimensional charge stability diagram
 
     Args:
@@ -360,78 +359,44 @@ def find_transitions(x: np.ndarray,
         #percent_error    = abs_error/observed_gradient*100                = abs_error/(-(theta.shape[0]/raw_gradient))*100
         gradient_error    = (np.abs(raw_gradient/(raw_gradient-1)-1) + np.abs(raw_gradient/(raw_gradient+1)-1))*50
         
-
+        dV = get_charge_transfer(Z, location, gradient, theta_mode)
         if true_units:  # Convert indices to units
             gradient = gradient * (y[1] - y[0]) / (x[1] - x[0])  # in V/V
             location = x[location]  # units in V
-
-        if charge_transfer:  # TODO What is the downside to applying this by default?
-            # This is not set to be enabled by default for three main reasons:
-            # 1. It can clutter the output and make it less clear to understand/read
-            # 2. It is called multiple times and takes up processing time (approx 10ms)
-            # 3. I haven't found anything useful for it yet, so it's not needed all the time
-            
-            # dV = dVtop = delta_q/Ctop
-            dV, dI, dI_x, dI_y = get_charge_transfer_information(
-                Z, location, gradient, theta_mode)
-
-            if true_units: # Convert indices to units
-                dV = dV * (y[1] - y[0]) # units in V
-                dI_y = y[dI_y] # units in V
-                dI_x = x[dI_x] # units in V
-            transition = {'location': location,
-                          'gradient': gradient,
-                          'gradient_error': gradient_error,
-                          'intensity': intensity,
-                          'dVtop': dV,
-                          'dI_y': dI_y,
-                          'dI_x': dI_x,
-                          'dI': dI}
-        else:
-            transition = {'location': location,
-                          'gradient': gradient,
-                          'gradient_error': gradient_error,
-                          'intensity': intensity}
+            dV = dV * (y[1] - y[0]) # units in V
 
         #Add transition entry onto the output list
-        transitions.append(transition)
+        transitions.append({'location': location,
+                      'gradient': gradient,
+                      'gradient_error': gradient_error,
+                      'intensity': intensity,
+                      'dVtop': dV})
 
     if (plot == 'Complex'): plot_hough_transform(hough_filt,theta_dif)
         
-    if (plot == 'Simple')|(plot == 'Complex'): plot_transitions(x,y,Z,transitions)
+    if (plot == True)|(plot == 'Complex'): plot_transitions(x,y,Z,transitions)
 
     return transitions
 
 
-def get_charge_transfer_information(Z: np.ndarray,
+def get_charge_transfer(Z: np.ndarray,
                                     location: int,
                                     gradient: float,
-                                    theta_mode: float) -> Tuple[int, np.ndarray,
-                                                   np.ndarray, np.ndarray]:
-    """Calculate information about a particular charge transfer event.
-
-    Firstly, calculates how much the coulomb peaks shift at a charge transfer event.
+                                    theta_mode: float) -> int:
+    """Calculates how much the coulomb peaks shift at a charge transfer event.
     It does this by taking two slices either side of the transition, then comparing the shift.
-    
-    Secondly, the algorithm locates points where the current difference could be conducive as a tuning point.
-    It does this by again taking two slices either side of the transition and comparing the current difference.
 
     Args:
-        Z: 2-dimensional charge stability diagram matrix.
-        location: Base index of the charge transfer event in Z
-        gradient: Gradient of the charge transfer event in Z
+        Z         : 2-dimensional charge stability diagram matrix.
+        location  : Base index of the charge transfer event in Z
+        gradient  : Gradient of the charge transfer event in Z
         theta_mode: Mode of theta (most common theta value)
 
     Returns:
         dV: The shift of coulomb peaks from a charge transfer event.
                       Given as a shift of index in Z. When properly scaled:
                           dV = dVtop = delta_q/Ctop
-        dI: An array of current change from before to after a transition.
-        dI_x: An array of x-indices corresponding to the points in dI.
-        dI_y: An array of y-indices corresponding to the points in dI.
     """
-    #9.95 ms ± 369 µs per loop (mean ± std. dev. of 7 runs, 100 loops each)
-
     ly = Z.shape[0]
     yl = np.arange(ly, dtype=int)
     xl = (location + np.round(yl / gradient)).astype(int)
@@ -440,12 +405,12 @@ def get_charge_transfer_information(Z: np.ndarray,
     # Take two current lines to the left and right of the transition, these will be compared to see what changes.
     # 3 can be chosen arbitrarily, it doesn't matter too much, 
     # as long as each line is definitely on each side of the transition
-    shift = 3
+    shift = 4
     pre  = xl - shift
     post = xl + shift
-    if ((min(pre) < 0)|(max(post)>Z.shape[1])):
+    if ((min(pre) < 0)|(max(post)>=Z.shape[1])):
         #if the pre-post lines are out of bounds, then don't bother computing. This could be improved later.
-        return -1, -1, -1, -1
+        return -1
     line_pre = Z[yl, pre]
     line_pos = Z[yl, post]
     
@@ -459,32 +424,33 @@ def get_charge_transfer_information(Z: np.ndarray,
             -line_pos[np.array(range(i, ly))]))  \
             * (ly + i) / ly                      #Adjustment for the decreasing comparison window as lines are shifted
 
-    # qc.MatPlot(AMDF, figsize=(14,5))
     # peakshift exists to find out how much of the shift in coulomb peaks in the difference is due to the 
     # natural gradient of the coulomb peaks. This can be worked out using tan, the coulomb peak gradient (theta_mode), 
     # and the shift amount
     peakshift = np.round(
-        np.abs(np.tan(theta_mode - np.pi / 2)) * (1 + 2 * shift)).astype(
+        np.abs(np.tan(theta_mode - np.pi/2)) *(1 +2*shift)).astype(
         int)
     dV = max_index(AMDF)[0] + peakshift
 
-    #*** This following section of code could be improved.
-    #*** It is a rudimentary implimentation of finding potential tuning points. 
+########## This code is rudimentary but it is on the way to automatically finding tuning points #######
     
-    #Now we will take closer lines to compare, in order to find the biggest difference in SET current.
-    shift = 1
-    line_pre = Z[yl, xl - shift]
-    line_pos = Z[yl, xl + shift]
+#     #*** This following section of code could be improved.
+#     #*** It is a rudimentary implimentation of finding potential tuning points. 
+    
+#     #Now we will take closer lines to compare, in order to find the biggest difference in SET current.
+#     shift = 1
+#     line_pre = Z[yl, xl - shift]
+#     line_pos = Z[yl, xl + shift]
 
-    #Compare the lines and find peaks in the difference 
-    #the find_peaks parameters could really be improved.
-    #also, using a %difference could be much better than absolute. Use (line_pre-line_pos)/line_pos when re-evaluating.
-    peaks = (signal.find_peaks(line_pre - line_pos, distance=25, height=0.2))
-    dI_y = peaks[0] #y-index of the peaks location
-    dI_x = (location + np.round(dI_y / gradient)).astype(int) #x-index of the peaks
-    dI = peaks[1]['peak_heights'] #the value of the peaks
+#     #Compare the lines and find peaks in the difference 
+#     #the find_peaks parameters could really be improved.
+#     #also, using a %difference could be much better than absolute. Use (line_pre-line_pos)/line_pos when re-evaluating.
+#     peaks = (signal.find_peaks(line_pre - line_pos, distance=25, height=0.2))
+#     dI_y = peaks[0] #y-index of the peaks location
+#     dI_x = (location + np.round(dI_y / gradient)).astype(int) #x-index of the peaks
+#     dI = peaks[1]['peak_heights'] #the value of the peaks
 
-    return dV, dI, dI_x, dI_y
+    return dV.astype(int)#, dI, dI_x, dI_y
 
 ## Start code for 3D tracking
 
