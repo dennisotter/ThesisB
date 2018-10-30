@@ -110,16 +110,13 @@ def find_matrix_mode(M: np.ndarray, bins: int = 100) -> float:
     return mode[0]
 
 
-def calculate_hough_transform(theta_filt: np.ndarray, filter: bool = True) -> np.ndarray:
+def calculate_hough_transform(theta_dif: np.ndarray) -> np.ndarray:
     """Compute the Hough transform matrix from a given theta matrix.
     
-    # TODO Duplicate this function to only recalculate a section of the hough transform 
-        after a transition has been deleted. This would greatly improve efficiency
     # TODO Have a variable input for the gradient range to scan for. This is dx_max
 
-
     Args:
-        theta_filt: Filtered 2-dimensional theta matrix of a charge stability diagram.
+        theta_dif: Filtered 2-dimensional theta matrix of a charge stability diagram.
 
     Returns:
         2-dimensional Hough transform matrix.
@@ -127,74 +124,67 @@ def calculate_hough_transform(theta_filt: np.ndarray, filter: bool = True) -> np
     """
    
     # Generate Lines
-    ly, lx = theta_filt.shape
-    yl = np.arange(ly, dtype=int)
+    len_y, len_x = theta_dif.shape
+    y_line = np.arange(len_y, dtype=int)
 
     # This value was found to be roughly twice the maximum dx value a transition will have
     # Essentially this is the minimum gradient
-    dx_max = int(np.ceil(ly / 3))
+    dx_max = int(np.ceil(len_y / 3))
 
-    hough = np.zeros((dx_max, lx))
+    hough = np.zeros((dx_max, len_x))
 
     # TODO there's probably a loopless way to implement this
     # -> I don't suspect there is.
-    for x1 in range(lx):
+    for x1 in range(len_x):
         for dx in range(min([x1 + 1, dx_max])):
-            xl = x1 + np.round(-dx * yl / ly).astype(int)
-            hough[dx, x1] = np.mean(theta_filt[yl, xl])
-
-    if filter:
-        #This filters transition_gradient but can also lose some information.
-        filt = np.ones((3,3))
-        hough = convolve2d(hough, filt, mode='same')/9
+            x_line = x1 + np.round(-dx * y_line / len_y).astype(int)
+            hough[dx, x1] = np.mean(theta_dif[y_line, x_line])
 
     return hough
 
 
-def delete_transition(theta_filt: np.ndarray, location: int, gradient: float) -> np.ndarray:
-    """Removes a transition from a theta_filt matrix. In order to find transitions, they are identified one at a time. 
-    The most prominent transition is identified first, then removed from the theta_filt matrix so that the second most 
+def delete_transition(theta_dif: np.ndarray, hough_filt: np.ndarray, hough_raw: np.ndarray) -> np.ndarray:
+    """Removes a transition from a theta_dif matrix. In order to find transitions, they are identified one at a time. 
+    The most prominent transition is identified first, then removed from the theta_dif matrix so that the second most 
     prominent transition can be found.
     
-    # TODO improve start, stop, why is +-3 chosen?
-    # -> Because of how theta is filtered, the transition will roughly be visible within a +-3 range.
-    # -> This definitely needs to be fixed, i know how to but dont have time at the moment. I can do it later if you need
-    
     Args:
-        theta_filt: 2-dimensional filtered theta matrix of a charge stability diagram.
+        theta_dif: 2-dimensional filtered theta matrix of a charge stability diagram.
         location: Base index of the charge transfer event in Z
         gradient: Gradient of the charge transfer event in Z
 
     Returns:
-        theta_filt: modified filtered 2-dimensional theta matrix, with the specified transition removed.
+        theta_dif: modified filtered 2-dimensional theta matrix, with the specified transition removed.
     """
 
-    ly,lx = theta_filt.shape
-
-    yl = np.arange(ly, dtype=int)
+    dx, location = max_index(hough_filt) 
+    len_y,len_x = theta_dif.shape
+    y_line = np.arange(len_y, dtype=int)
+    dx_max = hough_filt.shape[0]
 
     # Start and stop are the base locations from which to delete a transition from.
-    # THIS NEEDS TO BE IMPROVED
-    start = location - 6
-    stop = location + 6
-    dx = gradient
-
-    if start < 0:
-        start = 0
-    if stop > lx:  # this needs some fix
-        stop = lx
-    if start - dx < 0:
-        dx = start
+    start = location
+    stop = location
+    while((hough_filt[dx,start] >= 0.25)&(start>0)): #this value 0.25 needs to be same as in find_transition
+        start -=1
+    while((hough_filt[dx,stop] >= 0.25)&(stop<len_x)):
+        stop +=1
 
     # TODO there's probably a faster loop-less way to do this
     for x1 in range(start, stop):
-        xl = x1 + np.round(-dx * yl / ly).astype(int)
-        theta_filt[yl, xl] = 0
+        x_line = x1 + np.round(-dx * y_line / len_y).astype(int)
+        theta_dif[y_line, x_line] = 0
+        
+    x1 = np.array(range(start-dx,min([stop+dx_max-dx, len_x])))
+    for i in range(x1.size):
+        for dx_scan in range(dx_max):
+            x_line = x1[i] + np.round(-dx_scan * y_line / len_y).astype(int)
+            hough_raw[dx_scan, x1[i]] = np.mean(theta_dif[y_line, x_line])
 
-    return theta_filt
+    return theta_dif, hough_raw
 
 
-def calculate_theta_filt(theta: np.ndarray, theta_mode: float) -> np.ndarray:
+def calculate_theta_dif(theta: np.ndarray, theta_mode: float) -> np.ndarray:
     """Calculates the difference between the values of a given 
     theta matrix, and theta_mode. This function is used 
     to highlight pixels that are likely to lie on a transition.
@@ -204,12 +194,12 @@ def calculate_theta_filt(theta: np.ndarray, theta_mode: float) -> np.ndarray:
         theta_mode: Modal theta value, found with find_matrix_mode().
 
     Returns:
-        theta_filt: modified 2-dimensional theta matrix, 
+        theta_dif: modified 2-dimensional theta matrix, 
             with the specified transition removed.
     """
     #you can change this method for potential improvements
-    theta_filt = 1 - np.cos(theta_mode - theta) ** 2
-    return theta_filt
+    theta_dif = 1 - np.cos(theta_mode - theta) ** 2
+    return theta_dif
 
 
 def plot_transitions(x: np.ndarray, y: np.ndarray, Z: np.ndarray, transitions: List[dict]):
@@ -245,12 +235,12 @@ def plot_transitions(x: np.ndarray, y: np.ndarray, Z: np.ndarray, transitions: L
     plt.show()
 
 
-def plot_hough_transform(hough: np.ndarray, theta_filt: np.ndarray):
+def plot_hough_transform(hough: np.ndarray, theta_dif: np.ndarray, location: int = -1, dx: int = -1):
     """Plots a filtered theta matrix next to its Hough Transform.
     
     Args:
         hough: 2D hough transform matrix
-        theta_filt: 2D filtered theta matrix.
+        theta_dif: 2D filtered theta matrix.
     """
     fig, axes = plt.subplots(1, 2, figsize=[13,4])
 
@@ -260,10 +250,16 @@ def plot_hough_transform(hough: np.ndarray, theta_filt: np.ndarray):
     axes[0].set_title('Hough Transform Matrix')
     fig.colorbar(c, ax=axes[0])
 
-    axes[1].pcolormesh(theta_filt, cmap='gray')
+    axes[1].pcolormesh(theta_dif, cmap='gray')
     axes[1].set_xlabel('DBL & DBR voltage index')
     axes[1].set_ylabel('TGAC voltage index')
     axes[1].set_title('Filtered Theta Matrix')
+    
+    if location is not -1:
+        axes[0].scatter(location, dx, marker= 'o', linewidth=4, color='magenta')
+        yvals = axes[1].get_ylim()
+        xvals = [location, location-dx]
+        axes[1].plot(xvals, yvals, '--', linewidth=2,color='magenta')
 
     plt.show()
 
@@ -318,20 +314,22 @@ def find_transitions(x: np.ndarray,
 
     theta = calculate_theta_matrix(Z, filter=True)
     theta_mode = find_matrix_mode(theta)
-    theta_filt = calculate_theta_filt(theta,theta_mode)
+    theta_dif = calculate_theta_dif(theta,theta_mode)
 
-    hough = calculate_hough_transform(theta_filt, filter=True)
-
-    if (plot == 'Complex'): plot_hough_transform(hough,theta_filt)
+    hough_raw = calculate_hough_transform(theta_dif)
+    H_filter = np.ones((3,3))
+    hough_filt = convolve2d(hough_raw, H_filter, mode='same')/9
 
     transitions = []
 
     # This condition seems good now, could be improved later but i'd say low priority.
-    while ((np.max(hough) > 3*np.mean(hough)) & (np.max(hough) >0.25)):
+    while ((np.max(hough_filt) > 3*np.mean(hough_filt)) & (np.max(hough_filt) >0.25)):
         
         #maximum element of transition_gradient will reveal where the transition is
-        raw_gradient, raw_location = max_index(hough) 
-        intensity = np.max(hough) 
+        raw_gradient, raw_location = max_index(hough_filt) 
+        intensity = np.max(hough_filt) 
+        
+        if (plot == 'Complex'): plot_hough_transform(hough_filt, theta_dif, raw_location, raw_gradient)
 
         # When filtering with convolution, the size of theta and transition_gradient will differ from the initial Z matrix.
         # The following lines adjust the raw_location from transition_gradient to be a true location in Z
@@ -343,10 +341,9 @@ def find_transitions(x: np.ndarray,
         # + difference in x from dify due to gradient shift.
         location = int(difx + raw_location + np.round(dify * raw_gradient / theta.shape[0]))
         
-        #Recalculate theta with the identified transition removed
-        theta_filt = delete_transition(theta_filt, raw_location, raw_gradient)
-        #Recalculate transition_gradient with an updated theta
-        hough = calculate_hough_transform(theta_filt, filter=True)
+        #Recalculate theta and hough with the identified transition removed
+        theta_dif, hough_raw = delete_transition(theta_dif, hough_filt, hough_raw)
+        hough_filt = convolve2d(hough_raw, H_filter, mode='same')/9
         
         #If the gradient registers as being close to perfectly vertical, skip over this transition, 
         #since transitions are never perfectly vertical. 
@@ -399,9 +396,8 @@ def find_transitions(x: np.ndarray,
         #Add transition entry onto the output list
         transitions.append(transition)
 
-        if (plot == 'Complex'): plot_hough_transform(hough,theta_filt)
-
-
+    if (plot == 'Complex'): plot_hough_transform(hough_filt,theta_dif)
+        
     if (plot == 'Simple')|(plot == 'Complex'): plot_transitions(x,y,Z,transitions)
 
     return transitions
@@ -490,9 +486,9 @@ def get_charge_transfer_information(Z: np.ndarray,
 
     return dV, dI, dI_x, dI_y
 
-## Start code for 2D tracking
+## Start code for 3D tracking
 
-def find_transitions_2D(slow: np.ndarray,
+def find_transitions_3D(slow: np.ndarray,
                         fast: np.ndarray,
                         TG: np.ndarray,
                         Z: np.ndarray,
@@ -515,24 +511,24 @@ def find_transitions_2D(slow: np.ndarray,
         transition_list.append(find_transitions(fast,TG, Z[i,:,:], true_units=True, charge_transfer=False))
     
     if plot:
-        plot_transitions_2D(slow,fast,TG,Z,transition_list)
+        plot_transitions_3D(slow,fast,TG,Z,transition_list)
     return transition_list
 
 
-def plot_transitions_2D(slow: np.ndarray, 
+def plot_transitions_3D(slow: np.ndarray, 
                      fast: np.ndarray, 
                      TG: np.ndarray, 
                      Z: np.ndarray, 
                      transition_list: List[List[dict]],
                      fit_list: List[dict] = None):
-    """Plots the transitions found over a 3D scan with find_transitions_2D().
+    """Plots the transitions found over a 3D scan with find_transitions_3D().
     
     Args:
         slow: 1-dimensional voltage vector for the slow gate voltage of Z
         fast: 1-dimensional voltage vector for the fast gate voltage of Z
         TG  : 1-dimensional voltage vector for the TG voltage of Z
         Z   : 3-dimensional charge stability diagram matrix. [slow,fast,TG]
-        transition_list: A list of transition lists. Calculated with find_transitions_2D()
+        transition_list: A list of transition lists. Calculated with find_transitions_3D()
         fit_list: A list of fit lines, linking the transitions in transition_list. 
             fit_list is calculated with track_transitions_multi or track_transitions_single.
     """
@@ -553,10 +549,12 @@ def plot_transitions_2D(slow: np.ndarray,
     c = fig.colorbar(plot, ax=ax)
     c.set_label('TG/Fast Gradient', fontsize=14)
     
+    xvals = np.array([slow[0], slow[-1]])
     if fit_list is not None:
         for F in fit_list:
-            ax.plot(F['Slow points'],F['Fast points'],color='blue')
-            ax.plot(F['Slow points'],F['Fit points'],color='red')
+            yvals = xvals*F['fast/slow gradient'] +F['fast intercept']
+            ax.plot(xvals,yvals,color='red')
+    
     
     ax.set_ylabel('Fast Gate Voltage (V)', fontsize=14)
     ax.set_xlabel('Slow Gate Voltage (V)', fontsize=14);
@@ -604,18 +602,18 @@ def track_transitions_single(slow: np.ndarray,
     m_fast = np.mean(grad_points)
 
     retval = []
-    retval.append({'slow intercept': b,
+    retval.append({'fast intercept': b,
               'fast/slow gradient': m_slow,
               'TG/fast gradient': m_fast,
-              'TG/slow gradient': m_fast/m_slow,
+              'TG/slow gradient': m_fast/m_slow})#,
               
-              'Slow points': X[:,0],
-              'Fast points': Y,
-              'Fit points': X@r,
-              'Gradient vector': grad_points})
+#               'Slow points': X[:,0],
+#               'Fast points': Y,
+#               'Fit points': X@r,
+#               'Gradient vector': grad_points})
     
     if plot:
-        plot_transitions_2D(slow,fast,TG,Z,transition_list,retval)
+        plot_transitions_3D(slow,fast,TG,Z,transition_list,retval)
     return retval
 
 
@@ -626,7 +624,7 @@ def track_transitions_multi(slow: np.ndarray,
                      Z: np.ndarray,
                      transition_list: List[List[dict]],
                      plot: bool = False) -> List[dict]:
-    """Tracks the transitions found in find_transitions_2D(). 
+    """Tracks the transitions found in find_transitions_3D(). 
     
     This will only work for any amount of transitions over the entire 3D scan
     However, this algorithm is not accurate; it can link transitions which are not correlated 
@@ -641,7 +639,7 @@ def track_transitions_multi(slow: np.ndarray,
     A test of 100 scans was sufficient to use over 16GB RAM and 100% of a 4-core processor.
     
     Basically, don't use this function. I have included it only to demonstrate my attempt. 
-    If you desire to correlate multiple transitions, use find_transitions_2D() with plot=True, 
+    If you desire to correlate multiple transitions, use find_transitions_3D() with plot=True, 
     then visually decide which ones are correlated.
     
     Args:
@@ -649,8 +647,8 @@ def track_transitions_multi(slow: np.ndarray,
         fast: 1-dimensional voltage vector for the fast gate voltage of Z
         TG  : 1-dimensional voltage vector for the TG voltage of Z
         Z   : 3-dimensional charge stability diagram matrix. [slow,fast,TG]
-        transition_list: A list of transition lists. Calculated with find_transitions_2D()
-        plot: If plot==True, then plot_transitions_2D() is automatically called with the respective values.
+        transition_list: A list of transition lists. Calculated with find_transitions_3D()
+        plot: If plot==True, then plot_transitions_3D() is automatically called with the respective values.
     """
     
     n_slow = Z.shape[0]
@@ -661,8 +659,9 @@ def track_transitions_multi(slow: np.ndarray,
                                 T['location'],
                                 T['gradient']))
     
-    X_slow_0 = np.ones((n_slow,2),dtype=int)
-    X_slow_0[:,0] = np.arange(n_slow,dtype=int)
+    X_slow_0 = np.swapaxes(np.array((slow, np.ones((len(slow)),dtype=int))),0,1)
+#     np.ones((n_slow,2),dtype=int)
+#     X_slow_0[:,0] = np.arange(n_slow,dtype=int)
     least_squares = []
 
     combs = [] #combinations of points
@@ -717,15 +716,15 @@ def track_transitions_multi(slow: np.ndarray,
                 ok = False
                 break
         if(ok):
-            retval.append({'slow intercept': L['b'],
+            retval.append({'fast intercept': L['b'],
                       'fast/slow gradient': L['m'],
                       'TG/fast gradient': np.mean(L['G_fast']),
-                      'TG/slow gradient': np.mean(L['G_fast'])/L['m'],
+                      'TG/slow gradient': np.mean(L['G_fast'])/L['m']})#,
               
-                      'Slow points': slow[np.asarray(L['X_slow'])],
-                      'Fast points': L['Y_fast'],
-                      'Fit points': L['Y_fit'],
-                      'Gradient vector': L['G_fast']})
+#                       'Slow points': slow[np.asarray(L['X_slow'])],
+#                       'Fast points': L['Y_fast'],
+#                       'Fit points': L['Y_fit'],
+#                       'Gradient vector': L['G_fast']})
             numbrs.extend(L['Y_fast'])
             
     
