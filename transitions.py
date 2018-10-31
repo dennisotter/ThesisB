@@ -214,7 +214,7 @@ def plot_transitions(x: np.ndarray, y: np.ndarray, Z: np.ndarray, transitions: L
         Z: 2-dimensional charge stability diagram matrix.
         transitions: List of transitions found using find_transitions()
     """
-    fig0,(ax0,ax1) = plt.subplots(1, 2, figsize=[12,4])
+    fig0,(ax0,ax1) = plt.subplots(1, 2, figsize=[13,4])
     fig0.suptitle('Transition Identification', fontsize=16, fontweight='semibold')
 
     ax0.pcolormesh(x, y, Z, cmap='hot')
@@ -237,7 +237,7 @@ def plot_transitions(x: np.ndarray, y: np.ndarray, Z: np.ndarray, transitions: L
     plt.show()
 
 
-def plot_hough_transform(hough: np.ndarray, theta_dif: np.ndarray, location: int = -1, dx: int = -1):
+def plot_hough_transform(hough: np.ndarray, theta_dif: np.ndarray, location: int = -1, dx: int = -1, vmax =1):
     """Plots a filtered theta matrix next to its Hough Transform.
     
     Args:
@@ -246,11 +246,11 @@ def plot_hough_transform(hough: np.ndarray, theta_dif: np.ndarray, location: int
     """
     fig, axes = plt.subplots(1, 2, figsize=[13,4])
 
-    c = axes[1].pcolormesh(hough, cmap='inferno')
+    c = axes[1].pcolormesh(hough, cmap='inferno',vmin=0,vmax=vmax)
     axes[1].set_ylabel('∆x value', fontsize=14)
     axes[1].set_xlabel('Fast Gate Voltage index', fontsize=14)
     axes[1].set_title('Hough Transform Matrix', fontsize=16)
-    fig.colorbar(c, ax=axes[0])
+#     fig.colorbar(c, ax=axes[1])
 
     axes[0].pcolormesh(theta_dif, cmap='gray')
     axes[0].set_xlabel('Fast Gate voltage index', fontsize=14)
@@ -330,7 +330,9 @@ def find_transitions(x: np.ndarray,
         raw_gradient, raw_location = max_index(hough_filt) 
         intensity = np.max(hough_filt) 
         
-        if (plot == 'Complex'): plot_hough_transform(hough_filt, theta_dif, raw_location, raw_gradient)
+        if (plot == 'Complex'): plot_hough_transform(hough_filt, theta_dif, 
+                                                     raw_location, raw_gradient,
+                                                     vmax= intensity)
 
         # When filtering with convolution, the size of theta and transition_gradient will differ from the initial Z matrix.
         # The following lines adjust the raw_location from transition_gradient to be a true location in Z
@@ -340,7 +342,7 @@ def find_transitions(x: np.ndarray,
         # raw_location 
         # + difference in x
         # + difference in x from dify due to gradient shift.
-        location = int(difx + raw_location + np.round(dify * raw_gradient / theta.shape[0]))
+        location = int(difx + raw_location + np.ceil(dify * raw_gradient / theta.shape[0]))
         
         #Recalculate theta and hough with the identified transition removed
         theta_dif, hough_raw = delete_transition(theta_dif, hough_filt, hough_raw)
@@ -374,7 +376,7 @@ def find_transitions(x: np.ndarray,
                       'intensity': intensity,
                       'dVtop': dV})
 
-    if (plot == 'Complex'): plot_hough_transform(hough_filt,theta_dif)
+    if (plot == 'Complex'): plot_hough_transform(hough_filt,theta_dif,vmax=1)
         
     if (plot == True)|(plot == 'Complex'): plot_transitions(x,y,Z,transitions)
 
@@ -416,23 +418,32 @@ def get_charge_transfer(Z: np.ndarray,
     line_pre = Z[yl, pre]
     line_pos = Z[yl, post]
     
-    # Average Magnitude Difference Function. 
-    # This will shift and compare the lines before and after to see how much the transition shifted the coulomb peaks
+#     Average Magnitude Difference Function. 
+#     This will shift and compare the lines before and after to see how much the transition shifted the coulomb peaks
     AMDF = np.zeros(ly)
     for i in range(ly):
         
         AMDF[i] = -np.mean(np.abs(
             line_pre[np.array(range(0, ly - i))]
             -line_pos[np.array(range(i, ly))]))  \
-            * (ly + i) / ly                      #Adjustment for the decreasing comparison window as lines are shifted
-
+            * (1+i)/(1)                      #Adjustment for the decreasing comparison window as lines are shifted
+#     plt.plot(line_pre)
+#     plt.plot(line_pos)
     # peakshift exists to find out how much of the shift in coulomb peaks in the difference is due to the 
     # natural gradient of the coulomb peaks. This can be worked out using tan, the coulomb peak gradient (theta_mode), 
     # and the shift amount
     peakshift = np.round(
         np.abs(np.tan(theta_mode - np.pi/2)) *(1 +2*shift)).astype(
         int)
+    
+#     init = AMDF[0]
+#     dV = init
+#     for i in range(ly):
+#         if AMDF[i] > dV : dV = AMDF[i]
+#         if AMDF[i] < init : break
+#     dV += peakshift
     dV = max_index(AMDF)[0] + peakshift
+
 
 ########## This code is rudimentary but it is on the way to automatically finding tuning points #######
     
