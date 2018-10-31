@@ -180,6 +180,8 @@ def delete_transition(theta_dif: np.ndarray, hough_filt: np.ndarray, hough_raw: 
         for dx_scan in range(min([x1[i] + 1, dx_max])):
             x_line = x1[i] + np.round(-dx_scan * y_line / len_y).astype(int)
             hough_raw[dx_scan, x1[i]] = np.mean(theta_dif[y_line, x_line])
+            
+    
 
     return theta_dif, hough_raw
 
@@ -213,16 +215,16 @@ def plot_transitions(x: np.ndarray, y: np.ndarray, Z: np.ndarray, transitions: L
         transitions: List of transitions found using find_transitions()
     """
     fig0,(ax0,ax1) = plt.subplots(1, 2, figsize=[12,4])
-    fig0.suptitle('Transition Identification', fontsize=14, fontweight='semibold')
+    fig0.suptitle('Transition Identification', fontsize=16, fontweight='semibold')
 
     ax0.pcolormesh(x, y, Z, cmap='hot')
-    ax0.set_xlabel('Fast Gate Voltage (V)')
-    ax0.set_ylabel('TG Voltage (V)')
-    ax0.set_title('Source scan')
+    ax0.set_xlabel('Fast Gate Voltage (V)', fontsize=14)
+    ax0.set_ylabel('TG Voltage (V)', fontsize=14)
+    ax0.set_title('Source scan', fontsize=16)
 
     ax1.pcolormesh(x, y, Z, cmap='hot')
-    ax1.set_xlabel('DBL & DBR Voltage (V)')
-    ax1.set_title('Transitions Identified')
+    ax1.set_xlabel('Fast Gate Voltage (V)', fontsize=14)
+    ax1.set_title('Transitions Identified', fontsize=16)
 
     yvals = ax1.get_ylim()
     for transition in transitions:
@@ -244,22 +246,22 @@ def plot_hough_transform(hough: np.ndarray, theta_dif: np.ndarray, location: int
     """
     fig, axes = plt.subplots(1, 2, figsize=[13,4])
 
-    c = axes[0].pcolormesh(hough, cmap='inferno')
-    axes[0].set_ylabel('∆x value')
-    axes[0].set_xlabel('Fast Gate Voltage index')
-    axes[0].set_title('Hough Transform Matrix')
+    c = axes[1].pcolormesh(hough, cmap='inferno')
+    axes[1].set_ylabel('∆x value', fontsize=14)
+    axes[1].set_xlabel('Fast Gate Voltage index', fontsize=14)
+    axes[1].set_title('Hough Transform Matrix', fontsize=16)
     fig.colorbar(c, ax=axes[0])
 
-    axes[1].pcolormesh(theta_dif, cmap='gray')
-    axes[1].set_xlabel('DBL & DBR voltage index')
-    axes[1].set_ylabel('TGAC voltage index')
-    axes[1].set_title('Filtered Theta Matrix')
+    axes[0].pcolormesh(theta_dif, cmap='gray')
+    axes[0].set_xlabel('Fast Gate voltage index', fontsize=14)
+    axes[0].set_ylabel('TG voltage index', fontsize=14)
+    axes[0].set_title('Filtered Theta Matrix', fontsize=16)
     
     if location is not -1:
-        axes[0].scatter(location, dx, marker= 'o', linewidth=4, color='magenta')
-        yvals = axes[1].get_ylim()
+        axes[1].scatter(location, dx, marker= 'o', linewidth=4, color='magenta')
+        yvals = axes[0].get_ylim()
         xvals = [location, location-dx]
-        axes[1].plot(xvals, yvals, '--', linewidth=2,color='magenta')
+        axes[0].plot(xvals, yvals, '--', linewidth=2,color='magenta')
 
     plt.show()
 
@@ -521,10 +523,15 @@ def plot_transitions_3D(slow: np.ndarray,
             yvals = xvals*F['fast/slow gradient'] +F['fast intercept']
             ax.plot(xvals,yvals)#,color='red')
     
-    
+    xmargin = (np.max(x_points)-np.min(x_points))/13
+    xlim = [(np.min(x_points)-xmargin), (np.max(x_points)+xmargin)]
+    ymargin = (np.max(y_points)-np.min(y_points))/10
+    ylim = [(np.min(y_points)-ymargin), (np.max(y_points)+ymargin)]
+    ax.set_xlim(xlim)
+    ax.set_ylim(ylim)
     ax.set_ylabel('Fast Gate Voltage (V)', fontsize=14)
     ax.set_xlabel('Slow Gate Voltage (V)', fontsize=14);
-    ax.set_title('2D Transition Plot', fontsize=14, fontweight='semibold')
+    ax.set_title('3D Transition Plot', fontsize=14, fontweight='semibold')
 
 
 def track_transitions_single(slow: np.ndarray,
