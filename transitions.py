@@ -167,7 +167,7 @@ def delete_transition(theta_dif: np.ndarray, hough_filt: np.ndarray, hough_raw: 
     stop = location
     while((hough_filt[dx,start] >= 0.25)&(start>0)): #this value 0.25 needs to be same as in find_transition
         start -=1
-    while((hough_filt[dx,stop] >= 0.25)&(stop<len_x)):
+    while((hough_filt[dx,stop] >= 0.25)&(stop<(len_x-1))):
         stop +=1
 
     # TODO there's probably a faster loop-less way to do this
@@ -177,7 +177,7 @@ def delete_transition(theta_dif: np.ndarray, hough_filt: np.ndarray, hough_raw: 
         
     x1 = np.array(range(start-dx,min([stop+dx_max-dx, len_x])))
     for i in range(x1.size):
-        for dx_scan in range(dx_max):
+        for dx_scan in range(min([x1[i] + 1, dx_max])):
             x_line = x1[i] + np.round(-dx_scan * y_line / len_y).astype(int)
             hough_raw[dx_scan, x1[i]] = np.mean(theta_dif[y_line, x_line])
 
@@ -474,7 +474,7 @@ def find_transitions_3D(slow: np.ndarray,
     """
     transition_list = []
     for i in range(Z.shape[0]): 
-        transition_list.append(find_transitions(fast,TG, Z[i,:,:], true_units=True, charge_transfer=False))
+        transition_list.append(find_transitions(fast,TG, Z[i,:,:], true_units=True))
     
     if plot:
         plot_transitions_3D(slow,fast,TG,Z,transition_list)
@@ -519,7 +519,7 @@ def plot_transitions_3D(slow: np.ndarray,
     if fit_list is not None:
         for F in fit_list:
             yvals = xvals*F['fast/slow gradient'] +F['fast intercept']
-            ax.plot(xvals,yvals,color='red')
+            ax.plot(xvals,yvals)#,color='red')
     
     
     ax.set_ylabel('Fast Gate Voltage (V)', fontsize=14)
