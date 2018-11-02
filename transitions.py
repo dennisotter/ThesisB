@@ -2,13 +2,8 @@
 # By Dennis Otter
 # Honours Thesis 2018.
 #
-#
-#
 # If you would like an in-depth explaination of this code, please refer to my thesis paper.
 # The paper also includes notes on some vital improvements to this code.
-
-#MODIFY THE OTHER ONE IN FINAL REPO NOT THIS
-
 
 from typing import List, Tuple
 import numpy as np
@@ -136,8 +131,6 @@ def calculate_hough_transform(theta_dif: np.ndarray) -> np.ndarray:
 
     hough = np.zeros((dx_max, len_x))
 
-    # TODO there's probably a loopless way to implement this
-    # -> I don't suspect there is.
     for x1 in range(len_x):
         for dx in range(min([x1 + 1, dx_max])):
             x_line = x1 + np.round(-dx * y_line / len_y).astype(int)
@@ -173,7 +166,6 @@ def delete_transition(theta_dif: np.ndarray, hough_filt: np.ndarray, hough_raw: 
     while((hough_filt[dx,stop] >= 0.25)&(stop<(len_x-1))):
         stop +=1
 
-    # TODO there's probably a faster loop-less way to do this
     for x1 in range(start, stop):
         x_line = x1 + np.round(-dx * y_line / len_y).astype(int)
         theta_dif[y_line, x_line] = 0
@@ -250,10 +242,9 @@ def plot_hough_transform(hough: np.ndarray, theta_dif: np.ndarray, location: int
     fig, axes = plt.subplots(1, 2, figsize=[13,4])
 
     c = axes[1].pcolormesh(hough, cmap='inferno',vmin=0,vmax=vmax)
-    axes[1].set_ylabel('∆x value', fontsize=14)
+    axes[1].set_ylabel('dx value', fontsize=14)
     axes[1].set_xlabel('Fast Gate Voltage index', fontsize=14)
     axes[1].set_title('Hough Transform Matrix', fontsize=16)
-#     fig.colorbar(c, ax=axes[1])
 
     axes[0].pcolormesh(theta_dif, cmap='gray')
     axes[0].set_xlabel('Fast Gate voltage index', fontsize=14)
@@ -299,21 +290,13 @@ def find_transitions(x: np.ndarray,
         location  (float): Voltage at the base of the transition.
         gradient  (float): Gradient of the transition. in y_Voltage/x_Voltage
         intensity (float): Value between 0 and 1, indicating the strength of the transition
-        dV        (float): The shift of coulomb peaks from a charge transfer event. dV = dVtop = ∆q/Ctop
-        dI        (array): An array of current change from before to after a transition.
-                           Returns -1 if error.
-        dI_x      (array): An array of x-voltages corresponding to the points in dI.
-        dI_y      (array): An array of y-voltages corresponding to the points in dI.
+        dV        (float): The shift of coulomb peaks from a charge transfer event. dV = dVtop = d_q/Ctop
     if true_units == False):
         location    (int): Index at the base of the transition.
         gradient  (float): Gradient of the transition. in y-index/x-index
         intensity (float): Value between 0 and 1, indicating the strength of the transition
         dV          (int): The shift of coulomb peaks from a charge transfer event in terms of index in X.
-                           dV*(y[1]-y[0]) = dVtop = ∆q/Ctop
-        dI        (array): An array of current change from before to after a transition.
-                           Returns -1 if error.
-        dI_x      (array): An array of x-indices corresponding to the points in dI.
-        dI_y      (array): An array of y-indices corresponding to the points in dI.
+                           dV*(y[1]-y[0]) = dVtop = d_q/Ctop
     """
 
     theta = calculate_theta_matrix(Z, filter=True)
@@ -402,7 +385,7 @@ def get_charge_transfer(Z: np.ndarray,
     Returns:
         dV: The shift of coulomb peaks from a charge transfer event.
                       Given as a shift of index in Z. When properly scaled:
-                          dV = dVtop = delta_q/Ctop
+                          dV = dVtop = d_q/Ctop
     """
     ly = Z.shape[0]
     yl = np.arange(ly, dtype=int)
@@ -410,8 +393,6 @@ def get_charge_transfer(Z: np.ndarray,
 
 
     # Take two current lines to the left and right of the transition, these will be compared to see what changes.
-    # 3 can be chosen arbitrarily, it doesn't matter too much, 
-    # as long as each line is definitely on each side of the transition
     shift = 4
     pre  = xl - shift
     post = xl + shift
@@ -430,41 +411,15 @@ def get_charge_transfer(Z: np.ndarray,
             line_pre[np.array(range(0, ly - i))]
             -line_pos[np.array(range(i, ly))]))  \
             * (1+i)/(1)                      #Adjustment for the decreasing comparison window as lines are shifted
-#     plt.plot(line_pre)
-#     plt.plot(line_pos)
+
     # peakshift exists to find out how much of the shift in coulomb peaks in the difference is due to the 
     # natural gradient of the coulomb peaks. This can be worked out using tan, the coulomb peak gradient (theta_mode), 
     # and the shift amount
     peakshift = np.round(
         np.abs(np.tan(theta_mode - np.pi/2)) *(1 +2*shift)).astype(
         int)
-    
-#     init = AMDF[0]
-#     dV = init
-#     for i in range(ly):
-#         if AMDF[i] > dV : dV = AMDF[i]
-#         if AMDF[i] < init : break
-#     dV += peakshift
+
     dV = max_index(AMDF)[0] + peakshift
-
-
-########## This code is rudimentary but it is on the way to automatically finding tuning points #######
-    
-#     #*** This following section of code could be improved.
-#     #*** It is a rudimentary implimentation of finding potential tuning points. 
-    
-#     #Now we will take closer lines to compare, in order to find the biggest difference in SET current.
-#     shift = 1
-#     line_pre = Z[yl, xl - shift]
-#     line_pos = Z[yl, xl + shift]
-
-#     #Compare the lines and find peaks in the difference 
-#     #the find_peaks parameters could really be improved.
-#     #also, using a %difference could be much better than absolute. Use (line_pre-line_pos)/line_pos when re-evaluating.
-#     peaks = (signal.find_peaks(line_pre - line_pos, distance=25, height=0.2))
-#     dI_y = peaks[0] #y-index of the peaks location
-#     dI_x = (location + np.round(dI_y / gradient)).astype(int) #x-index of the peaks
-#     dI = peaks[1]['peak_heights'] #the value of the peaks
 
     return dV.astype(int)#, dI, dI_x, dI_y
 
@@ -497,12 +452,69 @@ def find_transitions_3D(slow: np.ndarray,
     return transition_list
 
 
+def plot_slices_3D(slow: np.ndarray, 
+                     fast: np.ndarray, 
+                     TG: np.ndarray, 
+                     Z: np.ndarray, 
+                     transition_list: List[List[dict]]):
+    """Plots 2D slices from a 3D charge stability diagram.
+    
+    Args:
+        slow: 1-dimensional voltage vector for the slow gate voltage of Z
+        fast: 1-dimensional voltage vector for the fast gate voltage of Z
+        TG  : 1-dimensional voltage vector for the TG voltage of Z
+        Z   : 3-dimensional charge stability diagram matrix. [slow,fast,TG]
+        transition_list: A list of transition lists. Calculated with find_transitions_3D()
+    """
+    
+    fig,(ax0,ax1,ax2) = plt.subplots(1, 3, figsize=[10,2.5])
+    
+    ind = 0
+    ax0.pcolormesh(fast, TG, Z[ind,:,:], cmap='hot')
+    ax0.set_xlabel('Fast Gate Voltage (V)', fontsize=14)
+    ax0.set_ylabel('TG Voltage (V)', fontsize=14)
+    ax0.set_title('Slow Gate = '+str(slow[ind])+'V', fontsize=14, fontweight='semibold')
+
+    if len(transition_list[ind]) is not 0:
+        x_base = transition_list[ind][0]['location']
+        yvals = ax0.get_ylim()
+        xvals = [x_base, x_base+ (yvals[1] - yvals[0])/transition_list[ind][0]['gradient']]
+        ax0.plot(xvals, yvals, linewidth=6,color='lawngreen')
+    
+    
+    ind = np.floor(slow.shape[0]/2).astype(int)
+    ax1.pcolormesh(fast, TG, Z[ind,:,:], cmap='hot')
+    ax1.set_xlabel('Fast Gate Voltage (V)', fontsize=14)
+    ax1.yaxis.set_ticklabels([])
+    ax1.set_title('Slow Gate = '+str(slow[ind])+'V', fontsize=14, fontweight='semibold')
+
+    if len(transition_list[ind]) is not 0:
+        x_base = transition_list[ind][0]['location']
+        yvals = ax1.get_ylim()
+        xvals = [x_base, x_base+ (yvals[1] - yvals[0])/transition_list[ind][0]['gradient']]
+        ax1.plot(xvals, yvals, linewidth=6,color='magenta')
+
+    
+    ind = -1
+    ax2.pcolormesh(fast, TG, Z[ind,:,:], cmap='hot')
+    ax2.set_xlabel('Fast Gate Voltage (V)', fontsize=14)
+    ax2.yaxis.set_ticklabels([])
+    ax2.set_title('Slow Gate = '+str(slow[ind])+'V', fontsize=14, fontweight='semibold')
+
+    if len(transition_list[ind]) is not 0:
+        x_base = transition_list[ind][0]['location']
+        yvals = ax2.get_ylim()
+        xvals = [x_base, x_base+ (yvals[1] - yvals[0])/transition_list[ind][0]['gradient']]
+        ax2.plot(xvals, yvals, linewidth=6,color='aqua')
+
+        
 def plot_transitions_3D(slow: np.ndarray, 
                      fast: np.ndarray, 
                      TG: np.ndarray, 
                      Z: np.ndarray, 
                      transition_list: List[List[dict]],
-                     fit_list: List[dict] = None):
+                     fit_list: List[dict] = None,
+                     slices = False):
     """Plots the transitions found over a 3D scan with find_transitions_3D().
     
     Args:
@@ -513,7 +525,11 @@ def plot_transitions_3D(slow: np.ndarray,
         transition_list: A list of transition lists. Calculated with find_transitions_3D()
         fit_list: A list of fit lines, linking the transitions in transition_list. 
             fit_list is calculated with track_transitions_multi or track_transitions_single.
+        slices: if True, then 2D slices will be plotted above the tracked diagram.
     """
+    if slices:
+        plot_slices_3D(slow, fast, TG, Z, transition_list)
+    
     n_slow = Z.shape[0]
     x_points = []
     y_points = []
@@ -526,10 +542,11 @@ def plot_transitions_3D(slow: np.ndarray,
             grad_points.append(T['gradient'])
     
     
-    fig,ax = plt.subplots(1, 1, figsize=[9,5])
+    fig,ax = plt.subplots(1, 1, figsize=[10,5])
     plot = ax.scatter(x_points, y_points, c=grad_points)
-    c = fig.colorbar(plot, ax=ax)
-    c.set_label('TG/Fast Gradient', fontsize=14)
+    if slices is False:
+        c = fig.colorbar(plot, ax=ax)
+        c.set_label('TG/Fast Gradient', fontsize=14)
     
     xvals = np.array([slow[0], slow[-1]])
     if fit_list is not None:
@@ -546,6 +563,14 @@ def plot_transitions_3D(slow: np.ndarray,
     ax.set_ylabel('Fast Gate Voltage (V)', fontsize=14)
     ax.set_xlabel('Slow Gate Voltage (V)', fontsize=14);
     ax.set_title('3D Transition Plot', fontsize=14, fontweight='semibold')
+    
+    if slices: 
+        ind = 0
+        ax.scatter(slow[ind],transition_list[ind][0]['location'],linewidth=20,color='lawngreen')
+        ind = np.floor(slow.shape[0]/2).astype(int)
+        ax.scatter(slow[ind],transition_list[ind][0]['location'],linewidth=20,color='magenta')
+        ind = -1
+        ax.scatter(slow[ind],transition_list[ind][0]['location'],linewidth=20,color='aqua')
 
 
 def track_transitions_single(slow: np.ndarray,
@@ -592,12 +617,7 @@ def track_transitions_single(slow: np.ndarray,
     retval.append({'fast intercept': b,
               'fast/slow gradient': m_slow,
               'TG/fast gradient': m_fast,
-              'TG/slow gradient': m_fast/m_slow})#,
-              
-#               'Slow points': X[:,0],
-#               'Fast points': Y,
-#               'Fit points': X@r,
-#               'Gradient vector': grad_points})
+              'TG/slow gradient': m_fast/m_slow})
     
     if plot:
         plot_transitions_3D(slow,fast,TG,Z,transition_list,retval)
@@ -647,8 +667,6 @@ def track_transitions_multi(slow: np.ndarray,
                                 T['gradient']))
     
     X_slow_0 = np.swapaxes(np.array((slow, np.ones((len(slow)),dtype=int))),0,1)
-#     np.ones((n_slow,2),dtype=int)
-#     X_slow_0[:,0] = np.arange(n_slow,dtype=int)
     least_squares = []
 
     combs = [] #combinations of points
@@ -674,7 +692,7 @@ def track_transitions_multi(slow: np.ndarray,
             Y_fit = X_slow_1@r
             if 0 in Y_fit:
                 continue
-            Y_dif = np.mean(np.abs(Y_fast/Y_fit-1)) #np.mean(np.abs(Y_fit-Y_fast))
+            Y_dif = np.mean(np.abs(Y_fast/Y_fit-1))
             G_dif = np.max(np.abs((G_fast/np.mean(G_fast)-1)))
 
             Tot_dif = Y_dif/len(Y_fast)*(1+G_dif) #change this for different sorting
@@ -684,9 +702,7 @@ def track_transitions_multi(slow: np.ndarray,
                    'Y_fast': Y_fast,
                    'X_slow': X_slow,
                    'Y_fit': Y_fit,
-    #                'Y_dif': Y_dif,
                    'G_fast': G_fast,
-    #                'G_dif': G_dif,
                    'Tot_dif': Tot_dif,}
             least_squares.append(lsq)
         
@@ -706,12 +722,7 @@ def track_transitions_multi(slow: np.ndarray,
             retval.append({'fast intercept': L['b'],
                       'fast/slow gradient': L['m'],
                       'TG/fast gradient': np.mean(L['G_fast']),
-                      'TG/slow gradient': np.mean(L['G_fast'])/L['m']})#,
-              
-#                       'Slow points': slow[np.asarray(L['X_slow'])],
-#                       'Fast points': L['Y_fast'],
-#                       'Fit points': L['Y_fit'],
-#                       'Gradient vector': L['G_fast']})
+                      'TG/slow gradient': np.mean(L['G_fast'])/L['m']})
             numbrs.extend(L['Y_fast'])
             
     
@@ -719,4 +730,3 @@ def track_transitions_multi(slow: np.ndarray,
         plot_transitions_2D(slow,fast,TG,Z,transition_list, retval)
             
     return retval
-
