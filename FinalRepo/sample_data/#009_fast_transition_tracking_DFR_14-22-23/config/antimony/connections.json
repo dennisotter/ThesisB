@@ -1,0 +1,48 @@
+{
+    "AWG": [
+        "AWG_SD.ch0",
+        "PCDDS.trig_in"
+    ],
+    "TGAC": [
+        "AWG_SD.ch2",
+        "chip.TGAC"
+    ],
+    "DBL_DBR": [
+        "AWG_SD.ch3",
+        "chip.DBL_DBR"
+    ],
+    "DFL": [
+        "PCDDS.ch0",
+        "chip.DFL"
+    ],
+    "DDS0": [
+        "PCDDS.ch0",
+        "digitizer.ch1"
+    ],
+    "DFR": [
+        "PCDDS.ch1",
+        "chip.DFR"
+    ],
+    "DDS2": [
+        "PCDDS.ch2",
+        "digitizer.ch2"
+    ],
+    "DDS3": [
+        "PCDDS.ch3",
+        "digitizer.ch3"
+    ],
+    "stage": [
+        [
+            "AWG_SD.ch2",
+            "AWG_SD.ch3"
+        ],
+        [
+            "chip.TGAC",
+            "chip.DBL_DBR"
+        ]
+    ],
+    "ESR": [
+        "microwave.RF_out",
+        "chip.antenna"
+    ]
+}

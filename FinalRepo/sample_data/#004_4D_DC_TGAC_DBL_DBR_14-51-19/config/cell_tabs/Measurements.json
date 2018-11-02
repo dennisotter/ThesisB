@@ -1,0 +1,97 @@
+{
+    "Setup": {
+        "auto-tune": []
+    },
+    "DC": {
+        "Live": {
+            "Setup": [],
+            "Scan": [],
+            "3D": []
+        },
+        "Turnon": [],
+        "Pinchoff": [],
+        "1D": [],
+        "2D": [],
+        "Continuous single": []
+    },
+    "Variable read": [],
+    "Calibration": {
+        "Setup": [],
+        "Single": [],
+        "1D": {
+            "single": [],
+            "continuous": [],
+            "arbitrary": []
+        },
+        "2D": {
+            "Single": [],
+            "Continuous": []
+        }
+    },
+    "ESR": {
+        "Setup": [],
+        "Adiabatic": {
+            "Setup": [],
+            "0D": {
+                "Single": [],
+                "Continuous": []
+            },
+            "1D": {
+                "Single Frequency": [],
+                "Continuous Frequency": []
+            },
+            "Multi frequency": {
+                "Single": [],
+                "Continuous": [],
+                "Frequency deviation": [],
+                "Arbitrary": [],
+                "Dou": []
+            },
+            "2D": {
+                "Single": [],
+                "Continuous": [],
+                "Arbitrary": [],
+                "Frequency deviation": [],
+                "Duration": []
+            }
+        },
+        "Fixed": {
+            "Setup": [],
+            "0D": {
+                "Single": [],
+                "Continuous": []
+            },
+            "1D": {
+                "Frequency": [],
+                "Double Frequency": []
+            }
+        }
+    },
+    "NMR": {
+        "Setup": [],
+        "0D": {
+            "Single": [],
+            "Continuous": []
+        },
+        "1D": {
+            "Frequency": [],
+            "Duration": [],
+            "Amplitude": [],
+            "Ramsey": []
+        },
+        "2D": {
+            "Rabi Chevron": []
+        }
+    },
+    "T1": {
+        "Setup": [],
+        "1D": [],
+        "Duration": []
+    },
+    "Other": {
+        "AC/DC ratio": [],
+        "Optimal t_read": [],
+        "MultiCoulomb contast": [],
+        "Notes": []
+    }
+}

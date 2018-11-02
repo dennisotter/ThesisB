@@ -1,0 +1,29 @@
+{
+    "default_environment": "antimony",
+    "data_folder": "E:\\Khan\\data",
+    "store_pulse_sequences_folder": "E:\\Khan\\data\\pulse_sequences",
+    "sine_waveform_settings": {
+        "use_modified_frequency": true,
+        "max_points": 80000,
+        "frequency_threshold": 1e-05,
+        "final_delay_threshold": 1e-05,
+        "filters": [
+            [
+                "points",
+                40000
+            ],
+            [
+                "frequency",
+                2e-06
+            ],
+            [
+                "final_delay",
+                5e-06
+            ],
+            [
+                "points",
+                10000
+            ]
+        ]
+    }
+}

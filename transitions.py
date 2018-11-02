@@ -7,6 +7,9 @@
 # If you would like an in-depth explaination of this code, please refer to my thesis paper.
 # The paper also includes notes on some vital improvements to this code.
 
+#MODIFY THE OTHER ONE IN FINAL REPO NOT THIS
+
+
 from typing import List, Tuple
 import numpy as np
 from scipy import signal

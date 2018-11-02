@@ -1,0 +1,10 @@
+{
+    "digitizer_trigger": [
+        "AWG_SD.ch1",
+        "digitizer.ch0"
+    ],
+    "AWG_out": [
+        "AWG_SD.ch3",
+        "digitizer.ch6"
+    ]
+}

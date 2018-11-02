@@ -1,0 +1,4 @@
+{
+    "threshold_method": "6*std_low",
+    "min_SNR": 4
+}

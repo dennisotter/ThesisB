@@ -1,0 +1,177 @@
+{
+    "DC": {
+        "amplitude": 0.0,
+        "duration": 0.003,
+        "connection_label": "stage"
+    },
+    "trace": {
+        "amplitude": 0.0,
+        "duration": 0.003,
+        "connection_label": "stage"
+    },
+    "DC_trace": {
+        "inherit": "DC",
+        "duration": 0.2
+    },
+    "DC_final": {
+        "inherit": "DC",
+        "duration": 0.00025
+    },
+    "read": {
+        "duration": 0.0035,
+        "amplitude": 0.0,
+        "connection_label": "stage"
+    },
+    "read_initialize": {
+        "inherit": "read",
+        "duration": 0.006
+    },
+    "read_long": {
+        "inherit": "read",
+        "duration": 0.02
+    },
+    "initialize_down": {
+        "inherit": "read",
+        "duration": 0.03
+    },
+    "final": {
+        "inherit": "read",
+        "duration": 0.00025
+    },
+    "empty": {
+        "amplitude": -0.07,
+        "duration": 0.002,
+        "connection_label": "stage"
+    },
+    "plunge": {
+        "amplitude": 0.05,
+        "duration": 0.002,
+        "connection_label": "stage"
+    },
+    "ESR": {
+        "duration": 1e-05,
+        "power": 20,
+        "frequency": "config:antimony.properties.ESR8",
+        "connection_label": "ESR"
+    },
+    "adiabatic_ESR": {
+        "inherit": "ESR",
+        "duration": 0.004,
+        "frequency_deviation": 2000000.0
+    },
+    "NMR": {
+        "duration": 0.006,
+        "amplitude": 0.025,
+        "frequency": "config:antimony.properties.NMR78",
+        "phase": 0,
+        "connection_label": "DFR"
+    },
+    "NMR78": {
+        "inherit": "NMR",
+        "frequency": "config:antimony.properties.NMR78"
+    },
+    "NMR78_pi": {
+        "inherit": "NMR78",
+        "duration": 0.000482
+    },
+    "NMR78_piHalf": {
+        "inherit": "NMR78",
+        "duration": 0.000355
+    },
+    "NMR67": {
+        "inherit": "NMR",
+        "frequency": "config:antimony.properties.NMR67"
+    },
+    "NMR67_pi": {
+        "inherit": "NMR67",
+        "duration": 0.000552
+    },
+    "NMR67_piHalf": {
+        "inherit": "NMR67",
+        "duration": 0.000388
+    },
+    "NMR56": {
+        "inherit": "NMR",
+        "frequency": "config:antimony.properties.NMR56"
+    },
+    "NMR56_pi": {
+        "inherit": "NMR56",
+        "duration": 0.000988
+    },
+    "NMR34": {
+        "inherit": "NMR",
+        "frequency": "config:antimony.properties.NMR34"
+    },
+    "NMR34_pi": {
+        "inherit": "NMR34",
+        "duration": 0.000988
+    },
+    "NMR23": {
+        "inherit": "NMR",
+        "frequency": "config:antimony.properties.NMR23"
+    },
+    "NMR23_pi": {
+        "inherit": "NMR23",
+        "duration": 0.000552
+    },
+    "NMR12": {
+        "inherit": "NMR",
+        "frequency": "config:antimony.properties.NMR12"
+    },
+    "NMR12_pi": {
+        "inherit": "NMR12",
+        "duration": 0.000482
+    },
+    "NMR12_piHalf": {
+        "inherit": "NMR12",
+        "duration": 0.000281
+    },
+    "NMR68": {
+        "inherit": "NMR",
+        "frequency": "config:antimony.properties.NMR68"
+    },
+    "NMR68_pi": {
+        "inherit": "NMR68",
+        "duration": 0.005355
+    },
+    "NMR57": {
+        "inherit": "NMR",
+        "frequency": "config:antimony.properties.NMR57"
+    },
+    "NMR57_pi": {
+        "inherit": "NMR57",
+        "duration": 0.003657
+    },
+    "NMR46": {
+        "inherit": "NMR",
+        "frequency": "config:antimony.properties.NMR46"
+    },
+    "NMR46_pi": {
+        "inherit": "NMR46",
+        "duration": 0.00317
+    },
+    "NMR35": {
+        "inherit": "NMR",
+        "frequency": "config:antimony.properties.NMR35"
+    },
+    "NMR35_pi": {
+        "inherit": "NMR35",
+        "duration": 0.00317
+    },
+    "NMR24": {
+        "inherit": "NMR",
+        "frequency": "config:antimony.properties.NMR24"
+    },
+    "NMR24_pi": {
+        "inherit": "NMR24",
+        "duration": 0.003657
+    },
+    "NMR13": {
+        "inherit": "NMR",
+        "frequency": "config:antimony.properties.NMR13"
+    },
+    "NMR13_pi": {
+        "inherit": "NMR13",
+        "duration": 0.005355
+    }
+}

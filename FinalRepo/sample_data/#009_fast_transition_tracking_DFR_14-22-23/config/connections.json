@@ -1,0 +1,68 @@
+[
+    {
+        "output_arg": "trigger_FPGA_controller.pxi6",
+        "input_arg": "digitizer.pxi6",
+        "trigger_start": true
+    },
+    {
+        "output_arg": "trigger_FPGA_controller.pxi6",
+        "input_arg": "AWG_SD.pxi6",
+        "trigger_start": true
+    },
+    {
+        "output_arg": "AWG_SD.ch0",
+        "input_arg": "PCDDS.trig_in"
+    },
+    {
+        "output_arg": "AWG_SD.ch1",
+        "input_arg": "microwave.trig_in"
+    },
+    {
+        "output_arg": "AWG_SD.ch2",
+        "input_arg": "chip.TGAC",
+        "scale": 0.0769
+    },
+    {
+        "output_arg": "AWG_SD.ch3",
+        "input_arg": "chip.DBL_DBR",
+        "scale": 0.05263
+    },
+    {
+        "combine": [
+            [
+                "AWG_SD.ch2",
+                "chip.TGAC"
+            ],
+            [
+                "AWG_SD.ch3",
+                "chip.DBL_DBR"
+            ]
+        ],
+        "scale": [
+            -1.69,
+            1
+        ]
+    },
+    {
+        "output_arg": "PCDDS.ch0",
+        "input_arg": "chip.DFL",
+        "scale": 0.0769
+    },
+    {
+        "output_arg": "PCDDS.ch1",
+        "input_arg": "chip.DFR",
+        "scale": 0.0769
+    },
+    {
+        "output_arg": "PCDDS.ch2",
+        "input_arg": "microwave.I"
+    },
+    {
+        "output_arg": "PCDDS.ch3",
+        "input_arg": "microwave.Q"
+    },
+    {
+        "output_arg": "microwave.RF_out",
+        "input_arg": "chip.antenna"
+    }
+]
